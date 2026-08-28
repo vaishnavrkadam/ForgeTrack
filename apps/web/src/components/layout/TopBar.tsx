@@ -5,6 +5,7 @@ import { useStore } from '../../lib/store';
 import { useSound } from '../sound/SoundProvider';
 import { useCursor } from '../cursor/BugCursor';
 import { BugMascot } from '../mascot/BugMascot';
+import { NotificationBell } from './NotificationBell';
 import { SearchIcon, PlusIcon, SparklesIcon } from '../ui/Icons';
 
 export const TopBar: React.FC = () => {
@@ -14,12 +15,15 @@ export const TopBar: React.FC = () => {
     setSelectedProject,
     setIsCreateModalOpen,
     setIsCommandPaletteOpen,
+    setIsInviteModalOpen,
     searchQuery,
     setSearchQuery,
     currentUser,
+    currentOrg,
     logout,
     setIsAuthModalOpen,
     setViewMode,
+    setActiveTab,
   } = useStore();
 
   const { soundEnabled, setSoundEnabled, playClickSound } = useSound();
@@ -65,20 +69,34 @@ export const TopBar: React.FC = () => {
         <div className="h-4 w-px bg-[#e7e2d6] dark:bg-[#33302a]" />
 
         {/* Project Selector */}
-        <select
-          value={selectedProject.id}
-          onChange={(e) => {
-            const found = projects.find(p => p.id === e.target.value);
-            if (found) setSelectedProject(found);
-          }}
-          className="bg-[#f5f0e6] dark:bg-[#262420] text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-[#e7e2d6] dark:border-[#33302a] text-[#1c1917] dark:text-[#f5f5f4] cursor-pointer hover:border-[#d6cfbe] transition-colors focus:outline-none"
-        >
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.key} — {p.name}
-            </option>
-          ))}
-        </select>
+        {projects && projects.length > 0 ? (
+          <select
+            value={selectedProject?.id || ''}
+            onChange={(e) => {
+              if (e.target.value === '__create_new__') {
+                setActiveTab('onboarding');
+                return;
+              }
+              const found = projects.find(p => p.id === e.target.value);
+              if (found) setSelectedProject(found);
+            }}
+            className="bg-[#f5f0e6] dark:bg-[#262420] text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-[#e7e2d6] dark:border-[#33302a] text-[#1c1917] dark:text-[#f5f5f4] cursor-pointer hover:border-[#d6cfbe] transition-colors focus:outline-none max-w-[200px] truncate"
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.key} — {p.name}
+              </option>
+            ))}
+            <option value="__create_new__">+ Create / Join Project...</option>
+          </select>
+        ) : (
+          <button
+            onClick={() => setActiveTab('onboarding')}
+            className="px-2.5 py-1 bg-[#ccee22]/20 border border-[#ccee22]/40 rounded-lg text-xs font-bold text-[#1c1917] dark:text-[#d4f033]"
+          >
+            + Create Project
+          </button>
+        )}
       </div>
 
       {/* Center: Global Search Bar */}
@@ -102,7 +120,7 @@ export const TopBar: React.FC = () => {
       </div>
 
       {/* Right: Quick Actions + Preferences + Profile */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         {/* Toggle Sound Chip */}
         <button
           onClick={() => setSoundEnabled(!soundEnabled)}
@@ -129,6 +147,9 @@ export const TopBar: React.FC = () => {
           <span>🐛 {cursorMode === 'bug' ? 'Bug Cursor' : 'Default'}</span>
         </button>
 
+        {/* Live Notification Bell */}
+        <NotificationBell />
+
         {/* AI Quick Sparkle */}
         <button
           onClick={() => setIsCommandPaletteOpen(true)}
@@ -139,14 +160,15 @@ export const TopBar: React.FC = () => {
         </button>
 
         {/* Create Issue Button */}
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="bg-[#ccee22] hover:bg-[#b8dd11] active:scale-95 text-[#1c1917] font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-transform"
-        >
-          <PlusIcon className="w-3.5 h-3.5" />
-          <span>New Issue</span>
-          <kbd className="text-[10px] bg-black/10 px-1 py-0.2 rounded font-mono">C</kbd>
-        </button>
+        {selectedProject && (
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="bg-[#ccee22] hover:bg-[#b8dd11] active:scale-95 text-[#1c1917] font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-transform"
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+            <span>New Issue</span>
+          </button>
+        )}
 
         {/* Profile Avatar / Login Button */}
         {currentUser ? (
@@ -158,9 +180,17 @@ export const TopBar: React.FC = () => {
               }}
               className="flex items-center gap-2 pl-1 pr-2 py-1 bg-[#f5f0e6] dark:bg-[#262420] border border-[#e7e2d6] dark:border-[#33302a] hover:border-[#d6cfbe] rounded-full transition-all cursor-pointer"
             >
-              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#ff7a38] to-[#ff6b57] text-white text-xs font-bold flex items-center justify-center shadow-xs">
-                {getInitials(currentUser.displayName)}
-              </div>
+              {currentUser.avatarUrl ? (
+                <img
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.displayName}
+                  className="w-7 h-7 rounded-full object-cover border border-[#e7e2d6] dark:border-[#33302a]"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#ff7a38] to-[#ff6b57] text-white text-xs font-bold flex items-center justify-center shadow-xs">
+                  {getInitials(currentUser.displayName)}
+                </div>
+              )}
               <span className="text-xs font-bold text-[#1c1917] dark:text-white max-w-[100px] truncate">
                 {currentUser.displayName}
               </span>
@@ -175,11 +205,32 @@ export const TopBar: React.FC = () => {
                   <div className="text-[11px] text-[#78716c] truncate">{currentUser.email}</div>
                   <div className="mt-1 flex items-center gap-1.5">
                     <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[#ccee22]/30 text-[#1c1917] dark:text-[#d4f033] rounded font-bold uppercase">
-                      {currentUser.provider}
+                      {currentUser.oauthProvider || currentUser.provider}
                     </span>
-                    <span className="text-[10px] text-[#a8a29e]">• {currentUser.role}</span>
+                    <span className="text-[10px] text-[#a8a29e]">• {currentOrg?.name || currentUser.role}</span>
                   </div>
                 </div>
+
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    setIsInviteModalOpen(true);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-[#1c1917] dark:text-white hover:bg-[#f5f0e6] dark:hover:bg-[#262420] rounded-xl transition-colors cursor-pointer flex items-center justify-between"
+                >
+                  <span>✉️ Invite Teammates</span>
+                  <span className="text-[10px] text-[#10b981] font-bold">New</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    setActiveTab('settings');
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-[#1c1917] dark:text-white hover:bg-[#f5f0e6] dark:hover:bg-[#262420] rounded-xl transition-colors cursor-pointer"
+                >
+                  ⚙️ Settings & Audit Logs
+                </button>
 
                 <button
                   onClick={() => {

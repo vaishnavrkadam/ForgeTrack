@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { useStore } from '../../lib/store';
@@ -9,9 +9,11 @@ export const KanbanBoardView: React.FC = () => {
   const { issues, selectedProject, setSelectedIssue, updateIssueStatus } = useStore();
   const { playSuccessSound, playHoverSound } = useSound();
 
+  if (!selectedProject) return null;
+
   const columns = [
-    { id: 'OPEN', label: 'To Do / Open', category: 'TODO' as const, color: '#f59e0b', nextStatus: 'IN PROGRESS', nextCategory: 'IN_PROGRESS' as const },
-    { id: 'IN PROGRESS', label: 'In Progress', category: 'IN_PROGRESS' as const, color: '#3b82f6', nextStatus: 'RESOLVED', nextCategory: 'DONE' as const },
+    { id: 'OPEN', label: 'To Do / Open', category: 'TODO' as const, color: '#f59e0b', nextStatus: 'IN_PROGRESS', nextCategory: 'IN_PROGRESS' as const },
+    { id: 'IN_PROGRESS', label: 'In Progress', category: 'IN_PROGRESS' as const, color: '#3b82f6', nextStatus: 'RESOLVED', nextCategory: 'DONE' as const },
     { id: 'RESOLVED', label: 'Resolved / Verified', category: 'DONE' as const, color: '#10b981', nextStatus: 'CLOSED', nextCategory: 'DONE' as const },
     { id: 'CLOSED', label: 'Closed', category: 'DONE' as const, color: '#a8a29e', nextStatus: null, nextCategory: null },
   ];
@@ -29,7 +31,12 @@ export const KanbanBoardView: React.FC = () => {
 
       <div className="grid grid-cols-4 gap-4 select-none min-h-[70vh]">
         {columns.map(col => {
-          const columnIssues = issues.filter(i => i.status === col.id && i.key.startsWith(selectedProject.key));
+          const columnIssues = issues.filter(i => {
+            if (col.id === 'IN_PROGRESS') {
+              return i.status === 'IN_PROGRESS' || i.status === 'IN PROGRESS';
+            }
+            return i.status === col.id;
+          });
 
           return (
             <div
@@ -82,7 +89,7 @@ export const KanbanBoardView: React.FC = () => {
                               updateIssueStatus(issue.id, col.nextStatus!, col.nextCategory!);
                               playSuccessSound();
                             }}
-                            className="px-1.5 py-0.5 bg-[#f5f0e6] dark:bg-[#262420] hover:bg-[#ccee22] hover:text-[#1c1917] rounded text-[9px] font-bold transition-colors"
+                            className="px-1.5 py-0.5 bg-[#f5f0e6] dark:bg-[#262420] hover:bg-[#ccee22] hover:text-[#1c1917] rounded text-[9px] font-bold transition-colors cursor-pointer"
                             title={`Move to ${col.nextStatus}`}
                           >
                             →

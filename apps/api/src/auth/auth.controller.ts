@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Get, Delete, Param, Res, Req, Ip, Headers, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Delete, Param, Query, Res, Req, Ip, Headers, BadRequestException } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { AuthService, AuthContext } from './auth.service';
+import { OAuthService } from './oauth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { CurrentUser, CurrentOrg, Public } from './decorators/auth.decorator';
@@ -8,7 +9,10 @@ import { ApiSuccessEnvelope } from '@forgetrack/contracts';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly oauthService: OAuthService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -33,6 +37,128 @@ export class AuthController {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    });
+
+    return { data: context };
+  }
+
+  /**
+   * GitHub OAuth Initiation
+   */
+  @Public()
+  @Get('github')
+  githubAuth(@Query('state') state: string, @Res() res: Response): void {
+    const url = this.oauthService.getGitHubAuthUrl(state);
+    res.redirect(url);
+  }
+
+  /**
+   * GitHub OAuth Callback
+   */
+  @Public()
+  @Get('github/callback')
+  async githubCallback(
+    @Query('code') code: string,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    if (!code) {
+      throw new BadRequestException('Authorization code is missing');
+    }
+
+    const profile = await this.oauthService.exchangeGitHubCode(code);
+    const { token } = await this.oauthService.upsertOAuthUser(profile, ipAddress, userAgent);
+
+    // Set secure cookie
+    res.cookie('sid', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/auth/callback?sid=${token}`);
+  }
+
+  /**
+   * Google OAuth Initiation
+   */
+  @Public()
+  @Get('google')
+  googleAuth(@Query('state') state: string, @Res() res: Response): void {
+    const url = this.oauthService.getGoogleAuthUrl(state);
+    res.redirect(url);
+  }
+
+  /**
+   * Google OAuth Callback
+   */
+  @Public()
+  @Get('google/callback')
+  async googleCallback(
+    @Query('code') code: string,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    if (!code) {
+      throw new BadRequestException('Authorization code is missing');
+    }
+
+    const profile = await this.oauthService.exchangeGoogleCode(code);
+    const { token } = await this.oauthService.upsertOAuthUser(profile, ipAddress, userAgent);
+
+    res.cookie('sid', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/auth/callback?sid=${token}`);
+  }
+
+  /**
+   * Dev Login Helper (instant authentication for development / pair testing)
+   */
+  @Public()
+  @Post('dev-login')
+  async devLogin(
+    @Body('provider') provider: 'github' | 'google' | 'email',
+    @Body('displayName') displayName: string,
+    @Body('email') email: string,
+    @Body('avatarUrl') avatarUrl: string,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccessEnvelope<AuthContext>> {
+    const chosenProvider = provider || 'github';
+    const chosenName = displayName || (chosenProvider === 'github' ? 'GitHub Developer' : 'Google Engineer');
+    const chosenEmail = email || (chosenProvider === 'github' ? 'developer@github.com' : 'engineer@gmail.com');
+    const chosenAvatar = avatarUrl || (chosenProvider === 'github'
+      ? 'https://avatars.githubusercontent.com/u/9919?v=4'
+      : 'https://lh3.googleusercontent.com/a/default-user=s96-c');
+
+    const { token, context } = await this.oauthService.upsertOAuthUser(
+      {
+        provider: chosenProvider === 'email' ? 'github' : chosenProvider,
+        providerId: `dev-${Date.now()}`,
+        email: chosenEmail,
+        displayName: chosenName,
+        avatarUrl: chosenAvatar,
+      },
+      ipAddress,
+      userAgent,
+    );
+
+    response.cookie('sid', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
     return { data: context };

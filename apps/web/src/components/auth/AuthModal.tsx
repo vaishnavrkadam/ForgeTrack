@@ -6,7 +6,7 @@ import { useSound } from '../sound/SoundProvider';
 import { BugMascot } from '../mascot/BugMascot';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, setIsAuthModalOpen, login } = useStore();
+  const { isAuthModalOpen, setIsAuthModalOpen, loginDev, loginEmail } = useStore();
   const { playClickSound, playSuccessSound } = useSound();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -14,41 +14,60 @@ export const AuthModal: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isAuthModalOpen) return null;
 
   const handleOAuthLogin = (provider: 'github' | 'google') => {
     playClickSound();
     setIsLoading(provider);
+    setErrorMsg(null);
 
-    setTimeout(() => {
-      if (provider === 'github') {
-        login('github', name.trim() || 'GitHub Developer', email.trim() || 'developer@github.com');
-      } else {
-        login('google', name.trim() || 'Google Engineer', email.trim() || 'engineer@gmail.com');
-      }
-      playSuccessSound();
-      setIsLoading(null);
-    }, 600);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+    // If client ID is not present, we use dev-login instantly; otherwise redirect to real OAuth endpoint
+    if (provider === 'github') {
+      window.location.href = `${apiUrl}/auth/github`;
+    } else {
+      window.location.href = `${apiUrl}/auth/google`;
+    }
   };
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     playClickSound();
     setIsLoading('email');
+    setErrorMsg(null);
 
-    setTimeout(() => {
-      const displayName = name.trim() || (email ? email.split('@')[0] : 'Engineer');
-      login('email', displayName, email || 'engineer@company.com');
+    try {
+      await loginEmail(email, password, mode === 'signup', name);
       playSuccessSound();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Authentication failed.');
+    } finally {
       setIsLoading(null);
-    }, 600);
+    }
+  };
+
+  const handleQuickDevLogin = async (provider: 'github' | 'google') => {
+    playClickSound();
+    setIsLoading(provider);
+    setErrorMsg(null);
+
+    try {
+      await loginDev(provider, name || (provider === 'github' ? 'GitHub Engineer' : 'Google Lead'), email);
+      playSuccessSound();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Dev login failed.');
+    } finally {
+      setIsLoading(null);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
       <div
-        className="w-full max-w-md bg-white dark:bg-[#1c1b18] border border-[#e7e2d6] dark:border-[#33302a] rounded-3xl p-7 shadow-2xl space-y-6 relative"
+        className="w-full max-w-md bg-white dark:bg-[#1c1b18] border border-[#e7e2d6] dark:border-[#33302a] rounded-3xl p-7 shadow-2xl space-y-5 relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
@@ -62,7 +81,7 @@ export const AuthModal: React.FC = () => {
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex p-2 bg-[#f5f0e6] dark:bg-[#262420] rounded-2xl mb-1">
-            <BugMascot state="happy" size={36} />
+            <BugMascot state="happy" size={36} className="animate-bug-bounce" />
           </div>
           <h2 className="text-xl font-black text-[#1c1917] dark:text-white tracking-tight">
             {mode === 'signin' ? 'Sign in to ForgeTrack' : 'Create your ForgeTrack Account'}
@@ -73,6 +92,12 @@ export const AuthModal: React.FC = () => {
               : 'Start tracking high-velocity software engineering defects today.'}
           </p>
         </div>
+
+        {errorMsg && (
+          <div className="p-3 bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20 rounded-xl text-xs font-semibold">
+            {errorMsg}
+          </div>
+        )}
 
         {/* OAuth Buttons */}
         <div className="space-y-2.5">
@@ -123,16 +148,19 @@ export const AuthModal: React.FC = () => {
 
         {/* Email Form */}
         <form onSubmit={handleEmailSubmit} className="space-y-3">
-          <div>
-            <label className="block text-[11px] font-bold text-[#78716c] uppercase mb-1">Your Full Name</label>
-            <input
-              type="text"
-              placeholder="e.g. Vaishnav Kadam"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3.5 py-2 bg-[#f5f0e6] dark:bg-[#262420] border border-[#e7e2d6] dark:border-[#33302a] rounded-xl text-xs text-[#1c1917] dark:text-white focus:outline-none focus:border-[#aacc11]"
-            />
-          </div>
+          {mode === 'signup' && (
+            <div>
+              <label className="block text-[11px] font-bold text-[#78716c] uppercase mb-1">Your Full Name</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Vaishnav Kadam"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3.5 py-2 bg-[#f5f0e6] dark:bg-[#262420] border border-[#e7e2d6] dark:border-[#33302a] rounded-xl text-xs text-[#1c1917] dark:text-white focus:outline-none focus:border-[#aacc11]"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-[11px] font-bold text-[#78716c] uppercase mb-1">Email Address</label>
@@ -150,6 +178,7 @@ export const AuthModal: React.FC = () => {
             <label className="block text-[11px] font-bold text-[#78716c] uppercase mb-1">Password</label>
             <input
               type="password"
+              required
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -165,6 +194,28 @@ export const AuthModal: React.FC = () => {
             {isLoading === 'email' ? 'Authenticating...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
+
+        {/* Quick Dev Login for local preview */}
+        <div className="pt-2 border-t border-[#e7e2d6] dark:border-[#33302a] flex items-center justify-between text-[11px]">
+          <span className="text-[#a8a29e]">Quick Dev Auth:</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleQuickDevLogin('github')}
+              className="text-[#3b82f6] hover:underline font-semibold"
+            >
+              Dev GitHub
+            </button>
+            <span className="text-[#a8a29e]">•</span>
+            <button
+              type="button"
+              onClick={() => handleQuickDevLogin('google')}
+              className="text-[#3b82f6] hover:underline font-semibold"
+            >
+              Dev Google
+            </button>
+          </div>
+        </div>
 
         {/* Footer switch mode */}
         <div className="text-center pt-1">

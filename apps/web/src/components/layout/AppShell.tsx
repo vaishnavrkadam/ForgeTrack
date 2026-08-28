@@ -16,9 +16,18 @@ import { CreateIssueModal } from '../issues/CreateIssueModal';
 import { IssueDetailView } from '../issues/IssueDetailView';
 import { CommandPalette } from '../command/CommandPalette';
 import { AuthModal } from '../auth/AuthModal';
+import { ProjectSetupScreen } from '../onboarding/ProjectSetupScreen';
+import { InviteMembersModal } from '../onboarding/InviteMembersModal';
 
 export const AppShell: React.FC = () => {
-  const { activeTab, viewMode } = useStore();
+  const {
+    activeTab,
+    viewMode,
+    selectedProject,
+    projects,
+    isInviteModalOpen,
+    setIsInviteModalOpen,
+  } = useStore();
 
   if (viewMode === 'landing') {
     return (
@@ -29,7 +38,14 @@ export const AppShell: React.FC = () => {
     );
   }
 
+  // Project Guard: If user has zero projects or no selected project, show Onboarding setup
+  const hasProjects = projects && projects.length > 0 && selectedProject !== null;
+
   const renderActiveView = () => {
+    if (!hasProjects || activeTab === 'onboarding') {
+      return <ProjectSetupScreen />;
+    }
+
     switch (activeTab) {
       case 'dashboard':
         return <DashboardView />;
@@ -54,7 +70,7 @@ export const AppShell: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-[#fbf9f5] dark:bg-[#121110] text-[#1c1917] dark:text-[#f5f5f4]">
       <TopBar />
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar />
+        {hasProjects && <Sidebar />}
         <main className="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto w-full">
           {renderActiveView()}
         </main>
@@ -65,6 +81,10 @@ export const AppShell: React.FC = () => {
       <IssueDetailView />
       <CommandPalette />
       <AuthModal />
+      <InviteMembersModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+      />
     </div>
   );
 };

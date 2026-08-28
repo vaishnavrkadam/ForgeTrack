@@ -1,47 +1,70 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../../lib/store';
 import { useSound } from '../sound/SoundProvider';
 import { BugMascot } from '../mascot/BugMascot';
 import { CloseIcon, SparklesIcon, CheckIcon } from '../ui/Icons';
+import { fetchIssueComments, addIssueComment } from '../../lib/api/issues';
+import { CommentData } from '../../lib/types';
 
 export const IssueDetailView: React.FC = () => {
   const { selectedIssue, setSelectedIssue, updateIssueStatus, ciRuns, currentUser } = useStore();
   const { playSuccessSound, playHoverSound } = useSound();
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState<Array<{ id: string; user: string; text: string; time: string }>>([]);
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
+  // Load real comments from API
+  useEffect(() => {
+    if (selectedIssue) {
+      fetchIssueComments(selectedIssue.id)
+        .then(list => setComments(list))
+        .catch(() => setComments([]));
+    }
+  }, [selectedIssue]);
 
   if (!selectedIssue) return null;
 
   const statuses = [
     { name: 'OPEN', category: 'TODO' as const, label: 'Open' },
-    { name: 'IN PROGRESS', category: 'IN_PROGRESS' as const, label: 'In Progress' },
+    { name: 'IN_PROGRESS', category: 'IN_PROGRESS' as const, label: 'In Progress' },
     { name: 'RESOLVED', category: 'DONE' as const, label: 'Resolved' },
     { name: 'CLOSED', category: 'DONE' as const, label: 'Closed' },
   ];
 
-  const handleAddComment = (e: React.FormEvent) => {
+  const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentText.trim()) return;
 
-    setComments(prev => [
-      ...prev,
-      {
-        id: `c-${Date.now()}`,
-        user: currentUser?.displayName ? `You (${currentUser.displayName})` : 'You',
-        text: commentText.trim(),
-        time: 'Just now',
-      },
-    ]);
-    setCommentText('');
-    playSuccessSound();
+    setIsSubmittingComment(true);
+    try {
+      const added = await addIssueComment(selectedIssue.id, commentText.trim());
+      setComments(prev => [...prev, added]);
+      setCommentText('');
+      playSuccessSound();
+    } catch {
+      // Local fallback
+      setComments(prev => [
+        ...prev,
+        {
+          id: `c-${Date.now()}`,
+          user: currentUser?.displayName || 'You',
+          text: commentText.trim(),
+          time: 'Just now',
+        },
+      ]);
+      setCommentText('');
+      playSuccessSound();
+    } finally {
+      setIsSubmittingComment(false);
+    }
   };
 
   const getMascotState = () => {
     if (selectedIssue.status === 'RESOLVED' || selectedIssue.status === 'CLOSED') return 'happy';
     if (selectedIssue.priority === 'URGENT') return 'error';
-    if (selectedIssue.status === 'IN PROGRESS') return 'working';
+    if (selectedIssue.status === 'IN_PROGRESS' || selectedIssue.status === 'IN PROGRESS') return 'working';
     return 'idle';
   };
 
@@ -81,7 +104,10 @@ export const IssueDetailView: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-[#78716c] uppercase mr-2">Workflow Status:</span>
             {statuses.map(st => {
-              const isCurrent = selectedIssue.status === st.name;
+              const isCurrent =
+                selectedIssue.status === st.name ||
+                (selectedIssue.status === 'IN PROGRESS' && st.name === 'IN_PROGRESS');
+
               return (
                 <button
                   key={st.name}
@@ -121,10 +147,10 @@ export const IssueDetailView: React.FC = () => {
             <div className="p-4 bg-gradient-to-br from-[#8b5cf6]/10 via-[#ccee22]/10 to-transparent border border-[#8b5cf6]/30 rounded-2xl">
               <div className="flex items-center gap-2 text-xs font-bold text-[#8b5cf6] mb-1.5">
                 <SparklesIcon className="w-4 h-4" />
-                <span>AI Executive Summary & Root Cause Analysis</span>
+                <span>AI Executive Summary & Insights</span>
               </div>
               <p className="text-xs leading-relaxed text-[#1c1917] dark:text-[#f5f5f4]">
-                This issue flags potential race conditions in sequence generation under burst concurrency. Mitigation involves transactional locks on the `project_counters` table. No data corruption reported.
+                This issue tracks &quot;{selectedIssue.title}&quot; in status {selectedIssue.status}. Assigned to {selectedIssue.assigneeName || 'team'}.
               </p>
             </div>
 
@@ -140,7 +166,7 @@ export const IssueDetailView: React.FC = () => {
             <div>
               <h3 className="text-xs font-bold text-[#78716c] uppercase mb-2">Linked Git Commits & CI Builds</h3>
               <div className="space-y-2">
-                {ciRuns.map(ci => (
+                {ciRuns.slice(0, 2).map(ci => (
                   <div
                     key={ci.id}
                     className="p-2.5 bg-white dark:bg-[#1c1b18] border border-[#e7e2d6] dark:border-[#33302a] rounded-xl flex items-center justify-between text-xs"
@@ -183,9 +209,10 @@ export const IssueDetailView: React.FC = () => {
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#ccee22] hover:bg-[#b8dd11] text-[#1c1917] font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-95"
+                  disabled={isSubmittingComment}
+                  className="px-4 py-2 bg-[#ccee22] hover:bg-[#b8dd11] text-[#1c1917] font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-95 disabled:opacity-50"
                 >
-                  Comment
+                  {isSubmittingComment ? 'Sending...' : 'Comment'}
                 </button>
               </form>
             </div>
@@ -213,14 +240,14 @@ export const IssueDetailView: React.FC = () => {
             <div>
               <span className="block text-[11px] font-bold text-[#78716c] uppercase mb-1">Target Milestone</span>
               <div className="font-semibold text-[#1c1917] dark:text-white">
-                {selectedIssue.milestone || 'Sprint 24'}
+                {selectedIssue.milestone || 'Sprint 1'}
               </div>
             </div>
 
             <div>
               <span className="block text-[11px] font-bold text-[#78716c] uppercase mb-1">Target Version</span>
               <div className="font-mono text-[#3b82f6]">
-                {selectedIssue.version || 'v1.4.0'}
+                {selectedIssue.version || 'v1.0.0'}
               </div>
             </div>
 

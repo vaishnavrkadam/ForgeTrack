@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../../lib/store';
 import { useSound } from '../sound/SoundProvider';
 import { BugMascot } from '../mascot/BugMascot';
 import { SparklesIcon, CloseIcon } from '../ui/Icons';
+import { fetchProjectMembers } from '../../lib/api/issues';
+import { ProjectMemberData } from '../../lib/types';
 
 export const CreateIssueModal: React.FC = () => {
   const {
@@ -24,8 +26,28 @@ export const CreateIssueModal: React.FC = () => {
   const [priority, setPriority] = useState('HIGH');
   const [severity, setSeverity] = useState('MAJOR');
   const [component, setComponent] = useState('Core Engine');
-  const [assigneeName, setAssigneeName] = useState(currentUser?.displayName || 'Developer');
+  const [assigneeId, setAssigneeId] = useState<string>('');
+  const [members, setMembers] = useState<ProjectMemberData[]>([]);
   const [previewTab, setPreviewTab] = useState<'write' | 'preview'>('write');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Load project members
+  useEffect(() => {
+    if (selectedProject && isCreateModalOpen) {
+      fetchProjectMembers(selectedProject.id)
+        .then(list => {
+          setMembers(list);
+          if (list.length > 0 && !assigneeId) {
+            setAssigneeId(list[0].userId);
+          }
+        })
+        .catch(() => {
+          // Fallback if no members found yet
+          setMembers([]);
+        });
+    }
+  }, [selectedProject, isCreateModalOpen, assigneeId]);
 
   // Real-time AI Duplicate Warning computation
   const duplicateCandidate = useMemo(() => {
@@ -48,27 +70,36 @@ export const CreateIssueModal: React.FC = () => {
     return Math.max(20, Math.min(100, score));
   }, [title, description]);
 
-  if (!isCreateModalOpen) return null;
+  if (!isCreateModalOpen || !selectedProject) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    createIssue({
-      title: title.trim(),
-      description: description.trim(),
-      type,
-      priority,
-      severity,
-      component,
-      assigneeName,
-      labels: ['new-triage'],
-    });
+    setIsSubmitting(true);
+    setErrorMsg(null);
 
-    playSuccessSound();
-    setIsCreateModalOpen(false);
-    setTitle('');
-    setDescription('');
+    try {
+      await createIssue({
+        title: title.trim(),
+        description: description.trim(),
+        type,
+        priority,
+        severity,
+        component,
+        assigneeId: assigneeId || undefined,
+        labels: ['new-triage'],
+      });
+
+      playSuccessSound();
+      setIsCreateModalOpen(false);
+      setTitle('');
+      setDescription('');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to create issue.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -96,6 +127,12 @@ export const CreateIssueModal: React.FC = () => {
             <CloseIcon className="w-5 h-5" />
           </button>
         </div>
+
+        {errorMsg && (
+          <div className="mx-6 mt-4 p-3 bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20 rounded-xl text-xs font-semibold">
+            {errorMsg}
+          </div>
+        )}
 
         {/* Modal Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
@@ -233,14 +270,24 @@ export const CreateIssueModal: React.FC = () => {
             <div>
               <label className="block text-[11px] font-bold text-[#78716c] uppercase mb-1">Assignee</label>
               <select
-                value={assigneeName}
-                onChange={e => setAssigneeName(e.target.value)}
+                value={assigneeId}
+                onChange={e => setAssigneeId(e.target.value)}
                 className="w-full bg-[#f5f0e6] dark:bg-[#262420] text-xs font-semibold px-3 py-2 rounded-xl border border-[#e7e2d6] dark:border-[#33302a] text-[#1c1917] dark:text-white focus:outline-none"
               >
-                <option value="Alex Chen">Alex Chen (Lead Developer)</option>
-                <option value="Elena Rostova">Elena Rostova (Frontend Engineer)</option>
-                <option value="Sarah Miller">Sarah Miller (DevOps / Reliability)</option>
-                <option value="Marcus Vance">Marcus Vance (AI / ML Systems)</option>
+                <option value="">Unassigned</option>
+                {members.length > 0 ? (
+                  members.map(m => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.displayName} ({m.role})
+                    </option>
+                  ))
+                ) : (
+                  currentUser && (
+                    <option value={currentUser.id}>
+                      {currentUser.displayName} (You)
+                    </option>
+                  )
+                )}
               </select>
             </div>
           </div>
@@ -261,10 +308,11 @@ export const CreateIssueModal: React.FC = () => {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 onMouseEnter={playHoverSound}
-                className="px-5 py-2 text-xs font-bold bg-[#ccee22] hover:bg-[#b8dd11] active:scale-95 text-[#1c1917] rounded-xl shadow-xs transition-transform"
+                className="px-5 py-2 text-xs font-bold bg-[#ccee22] hover:bg-[#b8dd11] active:scale-95 text-[#1c1917] rounded-xl shadow-xs transition-transform disabled:opacity-50"
               >
-                Create Issue
+                {isSubmitting ? 'Creating...' : 'Create Issue'}
               </button>
             </div>
           </div>

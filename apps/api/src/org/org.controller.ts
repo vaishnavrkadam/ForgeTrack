@@ -33,4 +33,16 @@ export class OrgController {
     const data = await this.orgService.createInvitation(paramOrgId, email, role, user.id);
     return { data };
   }
+
+  @Post('invitations/accept')
+  async acceptInvitation(
+    @CurrentUser() user: any,
+    @Body('token') token: string,
+  ): Promise<ApiSuccessEnvelope<any>> {
+    if (!token) {
+      throw new BadRequestException('Invitation token is required.');
+    }
+    const data = await this.orgService.acceptInvitation(token, user.id);
+    return { data };
+  }
 }

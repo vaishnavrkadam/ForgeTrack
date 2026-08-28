@@ -1,13 +1,22 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { IssueData, ProjectData, ReleaseData, WebhookData, CiRunData, UserData } from './types';
-
-const INITIAL_PROJECTS: ProjectData[] = [
-  { id: 'proj-1', key: 'FORGE', name: 'ForgeTrack Core Engine', description: 'Core issue tracking backend & workflow engine', issueCount: 0 },
-  { id: 'proj-2', key: 'WEB', name: 'Web Dashboard & UI', description: 'Next.js frontend application and interaction design', issueCount: 0 },
-  { id: 'proj-3', key: 'AI', name: 'AI Intelligence Pipeline', description: 'Embeddings, duplicate detection & triage classifiers', issueCount: 0 },
-];
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  IssueData,
+  ProjectData,
+  ReleaseData,
+  WebhookData,
+  CiRunData,
+  UserData,
+  OrganizationData,
+} from './types';
+import { api } from './api';
+import {
+  fetchProjects,
+  fetchProjectIssues,
+  createIssue as apiCreateIssue,
+  updateIssue as apiUpdateIssue,
+} from './api/issues';
 
 const INITIAL_RELEASES: ReleaseData[] = [
   {
@@ -34,23 +43,39 @@ const INITIAL_WEBHOOKS: WebhookData[] = [
 ];
 
 const INITIAL_CI_RUNS: CiRunData[] = [
-  { id: 'ci-1', commitSha: 'main-latest', workflowName: 'Build & Unit Tests', status: 'SUCCESS', url: 'https://github.com/vaishnavrkadam/ForgeTrack/actions', startedAt: 'Just now' },
+  {
+    id: 'ci-1',
+    commitSha: 'main-latest',
+    workflowName: 'Build & Unit Tests',
+    status: 'SUCCESS',
+    url: 'https://github.com/vaishnavrkadam/ForgeTrack/actions',
+    startedAt: 'Just now',
+  },
 ];
 
 interface StoreContextType {
   currentUser: UserData | null;
-  login: (provider: 'github' | 'google' | 'email', displayName?: string, email?: string, avatarUrl?: string) => void;
-  logout: () => void;
+  currentOrg: OrganizationData | null;
+  isLoadingUser: boolean;
+  login: (provider?: 'github' | 'google' | 'email', name?: string, email?: string, avatarUrl?: string) => Promise<void>;
+  loginDev: (provider?: 'github' | 'google' | 'email', name?: string, email?: string, avatarUrl?: string) => Promise<void>;
+  loginEmail: (email: string, password: string, isSignUp?: boolean, displayName?: string) => Promise<void>;
+  logout: () => Promise<void>;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
+  isInviteModalOpen: boolean;
+  setIsInviteModalOpen: (open: boolean) => void;
   viewMode: 'app' | 'landing';
   setViewMode: (mode: 'app' | 'landing') => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  selectedProject: ProjectData;
-  setSelectedProject: (proj: ProjectData) => void;
+  selectedProject: ProjectData | null;
+  setSelectedProject: (proj: ProjectData | null) => void;
   projects: ProjectData[];
   issues: IssueData[];
+  isLoadingIssues: boolean;
+  reloadProjects: () => Promise<void>;
+  reloadIssues: () => Promise<void>;
   releases: ReleaseData[];
   webhooks: WebhookData[];
   ciRuns: CiRunData[];
@@ -60,8 +85,8 @@ interface StoreContextType {
   setIsCreateModalOpen: (open: boolean) => void;
   isCommandPaletteOpen: boolean;
   setIsCommandPaletteOpen: (open: boolean) => void;
-  createIssue: (issue: Partial<IssueData>) => void;
-  updateIssueStatus: (issueId: string, status: string, category: 'TODO' | 'IN_PROGRESS' | 'DONE') => void;
+  createIssue: (dto: Partial<IssueData>) => Promise<IssueData | null>;
+  updateIssueStatus: (issueId: string, status: string, category: 'TODO' | 'IN_PROGRESS' | 'DONE') => Promise<void>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   filterType: string;
@@ -80,16 +105,23 @@ export const useStore = () => {
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserData | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'app' | 'landing'>('landing');
+  const [currentOrg, setCurrentOrg] = useState<OrganizationData | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
 
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'app' | 'landing'>('landing');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [projects] = useState<ProjectData[]>(INITIAL_PROJECTS);
-  const [selectedProject, setSelectedProject] = useState<ProjectData>(INITIAL_PROJECTS[0]);
+
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
   const [issues, setIssues] = useState<IssueData[]>([]);
+  const [isLoadingIssues, setIsLoadingIssues] = useState<boolean>(false);
+
   const [releases] = useState<ReleaseData[]>(INITIAL_RELEASES);
   const [webhooks] = useState<WebhookData[]>(INITIAL_WEBHOOKS);
   const [ciRuns] = useState<CiRunData[]>(INITIAL_CI_RUNS);
+
   const [selectedIssue, setSelectedIssue] = useState<IssueData | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
@@ -97,124 +129,225 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterPriority, setFilterPriority] = useState<string>('ALL');
 
-  // Hydrate from localStorage
-  useEffect(() => {
+  /**
+   * Hydrate authenticated user session from GET /auth/me
+   */
+  const hydrateSession = useCallback(async () => {
+    setIsLoadingUser(true);
     try {
-      const savedUser = localStorage.getItem('forgetrack_user');
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser);
-        setCurrentUser(parsedUser);
+      const data = await api.get<{ user: any; organization?: any }>('/auth/me');
+      if (data && data.user) {
+        const u: UserData = {
+          id: data.user.id,
+          email: data.user.email,
+          displayName: data.user.displayName,
+          avatarUrl: data.user.avatarUrl,
+          oauthProvider: data.user.oauthProvider,
+          provider: data.user.oauthProvider || 'email',
+          role: data.organization?.role || 'Engineer',
+        };
+        setCurrentUser(u);
+        setCurrentOrg(data.organization || null);
         setViewMode('app');
       }
-
-      const savedIssues = localStorage.getItem('forgetrack_issues');
-      if (savedIssues) {
-        setIssues(JSON.parse(savedIssues));
-      }
     } catch {
-      // Ignored
+      // Not authenticated yet
+      setCurrentUser(null);
+      setCurrentOrg(null);
+    } finally {
+      setIsLoadingUser(false);
     }
   }, []);
 
-  const login = (
-    provider: 'github' | 'google' | 'email',
-    displayName?: string,
+  useEffect(() => {
+    hydrateSession();
+  }, [hydrateSession]);
+
+  /**
+   * Fetch projects for current organization
+   */
+  const reloadProjects = useCallback(async () => {
+    if (!currentOrg) return;
+    try {
+      const list = await fetchProjects(currentOrg.id);
+      setProjects(list || []);
+      if (list && list.length > 0) {
+        // Keep currently selected or pick the first
+        setSelectedProject(prev => {
+          if (prev) {
+            const match = list.find(p => p.id === prev.id);
+            if (match) return match;
+          }
+          return list[0];
+        });
+      } else {
+        setSelectedProject(null);
+      }
+    } catch (err) {
+      console.warn('Failed to load projects:', err);
+    }
+  }, [currentOrg]);
+
+  useEffect(() => {
+    if (currentOrg) {
+      reloadProjects();
+    }
+  }, [currentOrg, reloadProjects]);
+
+  /**
+   * Fetch issues for selected project
+   */
+  const reloadIssues = useCallback(async () => {
+    if (!selectedProject) {
+      setIssues([]);
+      return;
+    }
+    setIsLoadingIssues(true);
+    try {
+      const list = await fetchProjectIssues(selectedProject.id);
+      setIssues(list);
+    } catch (err) {
+      console.warn('Failed to fetch issues:', err);
+    } finally {
+      setIsLoadingIssues(false);
+    }
+  }, [selectedProject]);
+
+  useEffect(() => {
+    if (selectedProject) {
+      reloadIssues();
+    } else {
+      setIssues([]);
+    }
+  }, [selectedProject, reloadIssues]);
+
+  const loginDev = async (
+    provider: 'github' | 'google' | 'email' = 'github',
+    name?: string,
     email?: string,
     avatarUrl?: string,
   ) => {
-    let defaultName = 'Developer';
-    let defaultEmail = 'developer@forgetrack.dev';
-
-    if (provider === 'github') {
-      defaultName = displayName || 'GitHub Engineer';
-      defaultEmail = email || 'github-user@users.noreply.github.com';
-    } else if (provider === 'google') {
-      defaultName = displayName || 'Google User';
-      defaultEmail = email || 'google-user@gmail.com';
-    } else {
-      defaultName = displayName || 'Engineering Lead';
-      defaultEmail = email || 'engineer@company.com';
-    }
-
-    const user: UserData = {
-      id: `usr-${Date.now()}`,
-      email: defaultEmail,
-      displayName: defaultName,
-      avatarUrl: avatarUrl || undefined,
-      provider,
-      role: 'Lead Architect',
-    };
-
-    setCurrentUser(user);
-    setViewMode('app');
-    setIsAuthModalOpen(false);
-
     try {
-      localStorage.setItem('forgetrack_user', JSON.stringify(user));
-    } catch {
-      // Ignored
+      const data = await api.post<{ user: any; organization?: any }>('/auth/dev-login', {
+        provider,
+        displayName: name,
+        email,
+        avatarUrl,
+      });
+
+      if (data && data.user) {
+        const u: UserData = {
+          id: data.user.id,
+          email: data.user.email,
+          displayName: data.user.displayName,
+          avatarUrl: data.user.avatarUrl,
+          oauthProvider: data.user.oauthProvider,
+          provider,
+          role: data.organization?.role || 'Lead Architect',
+        };
+        setCurrentUser(u);
+        setCurrentOrg(data.organization || null);
+        setViewMode('app');
+        setIsAuthModalOpen(false);
+      }
+    } catch (err) {
+      console.error('Dev login error:', err);
     }
   };
 
-  const logout = () => {
+  const loginEmail = async (
+    email: string,
+    password: string,
+    isSignUp: boolean = false,
+    displayName?: string,
+  ) => {
+    const endpoint = isSignUp ? '/auth/register' : '/auth/login';
+    const body = isSignUp ? { email, password, displayName: displayName || 'Engineer' } : { email, password };
+
+    const data = await api.post<{ user: any; organization?: any }>(endpoint, body);
+    if (data && data.user) {
+      const u: UserData = {
+        id: data.user.id,
+        email: data.user.email,
+        displayName: data.user.displayName,
+        avatarUrl: data.user.avatarUrl,
+        oauthProvider: data.user.oauthProvider,
+        provider: 'email',
+        role: data.organization?.role || 'Lead Architect',
+      };
+      setCurrentUser(u);
+      setCurrentOrg(data.organization || null);
+      setViewMode('app');
+      setIsAuthModalOpen(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Ignored
+    }
+    localStorage.removeItem('forgetrack_token');
+    document.cookie = 'sid=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     setCurrentUser(null);
+    setCurrentOrg(null);
+    setSelectedProject(null);
+    setProjects([]);
+    setIssues([]);
     setViewMode('landing');
+  };
+
+  const createIssue = async (data: Partial<IssueData>): Promise<IssueData | null> => {
+    if (!selectedProject || !currentOrg) return null;
+
     try {
-      localStorage.removeItem('forgetrack_user');
-    } catch {
-      // Ignored
+      const created = await apiCreateIssue(selectedProject.id, {
+        title: data.title,
+        description: data.description,
+        type: data.type || 'BUG',
+        priority: data.priority || 'MEDIUM',
+        severity: data.severity || 'MAJOR',
+        component: data.component,
+        componentId: data.componentId,
+        versionId: data.versionId,
+        milestoneId: data.milestoneId,
+        assigneeId: data.assigneeId,
+        reproductionSteps: (data as any).reproductionSteps,
+        expectedResult: (data as any).expectedResult,
+        actualResult: (data as any).actualResult,
+      });
+
+      await reloadIssues();
+      setSelectedIssue(created);
+      return created;
+    } catch (err) {
+      console.error('Failed to create issue:', err);
+      throw err;
     }
   };
 
-  const createIssue = (data: Partial<IssueData>) => {
-    const nextNum = issues.length + 101;
-    const newIssue: IssueData = {
-      id: `iss-${Date.now()}`,
-      key: `${selectedProject.key}-${nextNum}`,
-      number: nextNum,
-      title: data.title || 'Untitled Issue',
-      description: data.description || '',
-      type: data.type || 'BUG',
-      status: 'OPEN',
-      statusCategory: 'TODO',
-      priority: data.priority || 'MEDIUM',
-      severity: data.severity || 'MAJOR',
-      component: data.component || 'General',
-      version: data.version || 'v1.0.0',
-      milestone: data.milestone || 'Sprint 1',
-      assigneeName: data.assigneeName || currentUser?.displayName || 'Unassigned',
-      reporterName: currentUser?.displayName || 'Current User',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      labels: data.labels || [],
-      commentsCount: 0,
-    };
-
-    const updated = [newIssue, ...issues];
-    setIssues(updated);
-    setSelectedIssue(newIssue);
-
-    try {
-      localStorage.setItem('forgetrack_issues', JSON.stringify(updated));
-    } catch {
-      // Ignored
-    }
-  };
-
-  const updateIssueStatus = (issueId: string, status: string, category: 'TODO' | 'IN_PROGRESS' | 'DONE') => {
-    const updated = issues.map(i =>
-      i.id === issueId ? { ...i, status, statusCategory: category, updatedAt: new Date().toISOString() } : i,
+  const updateIssueStatus = async (
+    issueId: string,
+    status: string,
+    category: 'TODO' | 'IN_PROGRESS' | 'DONE',
+  ) => {
+    // Optimistic UI update
+    setIssues(prev =>
+      prev.map(i =>
+        i.id === issueId ? { ...i, status, statusCategory: category, updatedAt: new Date().toISOString() } : i,
+      ),
     );
-    setIssues(updated);
 
     if (selectedIssue && selectedIssue.id === issueId) {
       setSelectedIssue(prev => (prev ? { ...prev, status, statusCategory: category } : null));
     }
 
     try {
-      localStorage.setItem('forgetrack_issues', JSON.stringify(updated));
-    } catch {
-      // Ignored
+      await apiUpdateIssue(issueId, { status });
+    } catch (err) {
+      console.error('Failed to update issue status on server:', err);
+      await reloadIssues();
     }
   };
 
@@ -222,10 +355,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <StoreContext.Provider
       value={{
         currentUser,
-        login,
+        currentOrg,
+        isLoadingUser,
+        login: loginDev,
+        loginDev,
+        loginEmail,
         logout,
         isAuthModalOpen,
         setIsAuthModalOpen,
+        isInviteModalOpen,
+        setIsInviteModalOpen,
         viewMode,
         setViewMode,
         activeTab,
@@ -234,6 +373,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setSelectedProject,
         projects,
         issues,
+        isLoadingIssues,
+        reloadProjects,
+        reloadIssues,
         releases,
         webhooks,
         ciRuns,

@@ -1,15 +1,18 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { EmailService } from '../notification/email.service';
 
 export interface AuthContext {
   user: {
     id: string;
     email: string;
     displayName: string;
+    avatarUrl?: string;
+    oauthProvider?: string;
     status: string;
   };
   organization?: {
@@ -22,7 +25,10 @@ export interface AuthContext {
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    @Optional() private readonly emailService?: EmailService,
+  ) {}
 
   /**
    * Helper to slugify organization names safely
@@ -121,7 +127,7 @@ export class AuthService {
 
     // Query user and their primary organization membership
     const userRes = await this.dataSource.query(
-      `SELECT id, email, display_name, password_hash, status FROM users WHERE email = $1 LIMIT 1`,
+      `SELECT id, email, display_name, avatar_url, oauth_provider, password_hash, status FROM users WHERE email = $1 LIMIT 1`,
       [emailLower],
     );
 
@@ -145,7 +151,7 @@ export class AuthService {
     }
 
     // Check password
-    const passwordValid = bcrypt.compareSync(dto.password, user.password_hash);
+    const passwordValid = user.password_hash ? bcrypt.compareSync(dto.password, user.password_hash) : false;
     if (!passwordValid) {
       throw new UnauthorizedException({
         error: {
@@ -191,6 +197,8 @@ export class AuthService {
           id: user.id,
           email: user.email,
           displayName: user.display_name,
+          avatarUrl: user.avatar_url || undefined,
+          oauthProvider: user.oauth_provider || undefined,
           status: user.status,
         },
         organization: membership
@@ -224,7 +232,7 @@ export class AuthService {
 
     // Fetch active session
     const sessionRes = await this.dataSource.query(
-      `SELECT s.user_id, u.email, u.display_name, u.status
+      `SELECT s.user_id, u.email, u.display_name, u.avatar_url, u.oauth_provider, u.status
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = $1 AND s.expires_at > now() AND s.revoked_at IS NULL LIMIT 1`,
@@ -250,6 +258,8 @@ export class AuthService {
         id: session.user_id,
         email: session.email,
         displayName: session.display_name,
+        avatarUrl: session.avatar_url || undefined,
+        oauthProvider: session.oauth_provider || undefined,
         status: session.status,
       },
       organization: membership
@@ -390,7 +400,7 @@ export class AuthService {
   }
 
   /**
-   * Request password reset link (printed to console logs)
+   * Request password reset link
    */
   async requestPasswordReset(email: string): Promise<void> {
     const userRes = await this.dataSource.query(
@@ -403,8 +413,14 @@ export class AuthService {
     }
     const user = userRes[0];
     const token = this.generateSignedToken(user.id, 'reset', 3600000); // 1 hour TTL
-    const link = `http://localhost:3000/auth/reset-password?token=${token}`;
-    console.log(`[SMTP Mock Mailer] Password reset link sent to ${email}: ${link}`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const link = `${frontendUrl}/auth/reset-password?token=${token}`;
+    
+    if (this.emailService) {
+      await this.emailService.sendPasswordReset(email, link);
+    } else {
+      console.log(`[SMTP Mailer] Password reset link sent to ${email}: ${link}`);
+    }
   }
 
   /**
@@ -427,8 +443,14 @@ export class AuthService {
     if (userRes.length === 0) return;
     const user = userRes[0];
     const token = this.generateSignedToken(userId, 'verify', 86400000); // 24 hours TTL
-    const link = `http://localhost:3000/auth/verify-email?token=${token}`;
-    console.log(`[SMTP Mock Mailer] Email verification link sent to ${user.email}: ${link}`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const link = `${frontendUrl}/auth/verify-email?token=${token}`;
+    
+    if (this.emailService) {
+      await this.emailService.sendVerificationEmail(user.email, link);
+    } else {
+      console.log(`[SMTP Mailer] Email verification link sent to ${user.email}: ${link}`);
+    }
   }
 
   /**

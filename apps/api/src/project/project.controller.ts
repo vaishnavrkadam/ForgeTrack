@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, BadRequestException } from '@nestjs/common';
 import { ProjectService } from './project.service';
-import { CurrentUser } from '../auth/decorators/auth.decorator';
+import { CurrentUser, CurrentOrg } from '../auth/decorators/auth.decorator';
 import { RequirePermission } from '../authz/decorators/permissions.decorator';
 import { OrgPermission, ProjectPermission } from '../authz/permissions';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -27,6 +27,25 @@ export class ProjectController {
     return { data };
   }
 
+  @Post('projects/import-from-github')
+  @RequirePermission(OrgPermission.PROJECT_CREATE)
+  async importFromGitHub(
+    @CurrentUser() user: any,
+    @CurrentOrg() org: any,
+    @Body('repoOwner') repoOwner: string,
+    @Body('repoName') repoName: string,
+    @Body('name') name?: string,
+    @Body('key') key?: string,
+    @Body('description') description?: string,
+  ): Promise<ApiSuccessEnvelope<any>> {
+    if (!repoOwner || !repoName) {
+      throw new BadRequestException('Repository owner and name are required.');
+    }
+    const data = await this.projectService.importFromGitHub(org.id, user.id, repoOwner, repoName, name, key, description);
+    this.cacheService.del(`org-projects:${org.id}`);
+    return { data };
+  }
+
   @Get('organizations/:organizationId/projects')
   @RequirePermission(OrgPermission.READ)
   async listProjects(
@@ -48,6 +67,25 @@ export class ProjectController {
     @Param('projectId') projectId: string,
   ): Promise<ApiSuccessEnvelope<any>> {
     const data = await this.projectService.getProject(projectId);
+    return { data };
+  }
+
+  @Patch('projects/:projectId')
+  @RequirePermission(ProjectPermission.UPDATE)
+  async updateProject(
+    @Param('projectId') projectId: string,
+    @Body() dto: any,
+  ): Promise<ApiSuccessEnvelope<any>> {
+    const data = await this.projectService.updateProject(projectId, dto);
+    return { data };
+  }
+
+  @Get('projects/:projectId/stats')
+  @RequirePermission(ProjectPermission.READ)
+  async getProjectStats(
+    @Param('projectId') projectId: string,
+  ): Promise<ApiSuccessEnvelope<any>> {
+    const data = await this.projectService.getProjectStats(projectId);
     return { data };
   }
 

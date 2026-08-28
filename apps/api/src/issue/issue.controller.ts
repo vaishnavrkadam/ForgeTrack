@@ -29,6 +29,16 @@ export class IssueController {
     return { data };
   }
 
+  @Get('projects/:projectId/issues')
+  @RequirePermission(ProjectPermission.ISSUE_READ)
+  async listProjectIssues(
+    @CurrentOrg() org: any,
+    @Param('projectId') projectId: string,
+  ): Promise<ApiSuccessEnvelope<any[]>> {
+    const data = await this.issueService.searchIssues(org.id, { projectId });
+    return { data };
+  }
+
   @Get('issues/:issueId')
   @RequirePermission(ProjectPermission.ISSUE_READ)
   async getIssue(

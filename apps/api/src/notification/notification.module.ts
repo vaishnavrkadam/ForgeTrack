@@ -1,5 +1,6 @@
 import { Module, Global, OnModuleInit, forwardRef } from '@nestjs/common';
 import { NotificationService } from './notification.service';
+import { EmailService } from './email.service';
 import { NotificationController } from './notification.controller';
 import { AiModule } from '../ai/ai.module';
 
@@ -7,8 +8,8 @@ import { AiModule } from '../ai/ai.module';
 @Module({
   imports: [forwardRef(() => AiModule)],
   controllers: [NotificationController],
-  providers: [NotificationService],
-  exports: [NotificationService],
+  providers: [NotificationService, EmailService],
+  exports: [NotificationService, EmailService],
 })
 export class NotificationModule implements OnModuleInit {
   constructor(private readonly notificationService: NotificationService) {}

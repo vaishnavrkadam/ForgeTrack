@@ -10,8 +10,12 @@ export const DashboardView: React.FC = () => {
   const { issues, releases, selectedProject, setSelectedIssue, setIsCreateModalOpen, setActiveTab, currentUser } = useStore();
   const { playHoverSound } = useSound();
 
+  if (!selectedProject) {
+    return null;
+  }
+
   // Filter issues for the currently selected project
-  const projectIssues = issues.filter(i => i.key.startsWith(selectedProject.key));
+  const projectIssues = issues;
   const openIssues = projectIssues.filter(i => i.statusCategory !== 'DONE');
   const urgentCount = projectIssues.filter(i => i.priority === 'URGENT' || i.severity === 'BLOCKER').length;
   const inProgressCount = projectIssues.filter(i => i.statusCategory === 'IN_PROGRESS').length;
@@ -40,7 +44,7 @@ export const DashboardView: React.FC = () => {
           <BugMascot state="happy" size={54} interactive className="animate-bug-bounce" />
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2.5 bg-[#ccee22] hover:bg-[#b8dd11] text-[#1c1917] text-xs font-bold rounded-2xl shadow-xs flex items-center gap-2 transition-transform active:scale-95"
+            className="px-4 py-2.5 bg-[#ccee22] hover:bg-[#b8dd11] text-[#1c1917] text-xs font-bold rounded-2xl shadow-xs flex items-center gap-2 transition-transform active:scale-95 cursor-pointer"
           >
             <PlusIcon className="w-4 h-4" />
             <span>Create Defect</span>
@@ -85,7 +89,7 @@ export const DashboardView: React.FC = () => {
             </h2>
             <button
               onClick={() => setActiveTab('issues')}
-              className="text-xs font-semibold text-[#aacc11] dark:text-[#d4f033] hover:underline"
+              className="text-xs font-semibold text-[#aacc11] dark:text-[#d4f033] hover:underline cursor-pointer"
             >
               View all {selectedProject.key} issues →
             </button>
@@ -145,7 +149,7 @@ export const DashboardView: React.FC = () => {
             </p>
             <button
               onClick={() => setActiveTab('ai')}
-              className="w-full py-2 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
+              className="w-full py-2 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
             >
               Open AI Workbench
             </button>
@@ -163,12 +167,12 @@ export const DashboardView: React.FC = () => {
             <div className="space-y-1">
               <div className="flex justify-between text-[11px] text-[#78716c]">
                 <span>Progress</span>
-                <span className="font-bold">{activeRelease.doneIssues} / {activeRelease.totalIssues} resolved</span>
+                <span className="font-bold">{projectIssues.filter(i => i.statusCategory === 'DONE').length} / {projectIssues.length} resolved</span>
               </div>
               <div className="w-full h-2 bg-[#f5f0e6] dark:bg-[#262420] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[#ccee22]"
-                  style={{ width: `${(activeRelease.doneIssues / activeRelease.totalIssues) * 100}%` }}
+                  style={{ width: `${projectIssues.length > 0 ? (projectIssues.filter(i => i.statusCategory === 'DONE').length / projectIssues.length) * 100 : 0}%` }}
                 />
               </div>
             </div>

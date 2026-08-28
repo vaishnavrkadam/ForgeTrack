@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { useStore } from '../../lib/store';
@@ -22,8 +22,9 @@ export const IssuesListView: React.FC = () => {
 
   const { playHoverSound } = useSound();
 
+  if (!selectedProject) return null;
+
   const filteredIssues = issues.filter(issue => {
-    const matchProject = issue.key.startsWith(selectedProject.key);
     const matchSearch =
       issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       issue.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -32,7 +33,7 @@ export const IssuesListView: React.FC = () => {
     const matchType = filterType === 'ALL' || issue.type === filterType;
     const matchPriority = filterPriority === 'ALL' || issue.priority === filterPriority;
 
-    return matchProject && matchSearch && matchType && matchPriority;
+    return matchSearch && matchType && matchPriority;
   });
 
   return (
@@ -85,7 +86,7 @@ export const IssuesListView: React.FC = () => {
 
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="px-3.5 py-1.5 bg-[#ccee22] hover:bg-[#b8dd11] text-[#1c1917] text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-transform active:scale-95 shrink-0"
+          className="px-3.5 py-1.5 bg-[#ccee22] hover:bg-[#b8dd11] text-[#1c1917] text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-transform active:scale-95 shrink-0 cursor-pointer"
         >
           <PlusIcon className="w-3.5 h-3.5" />
           <span>New {selectedProject.key} Issue</span>
@@ -106,7 +107,7 @@ export const IssuesListView: React.FC = () => {
               setFilterType('ALL');
               setFilterPriority('ALL');
             }}
-            className="px-4 py-1.5 bg-[#f5f0e6] dark:bg-[#262420] hover:bg-[#e7e2d6] text-xs font-semibold rounded-xl text-[#1c1917] dark:text-white"
+            className="px-4 py-1.5 bg-[#f5f0e6] dark:bg-[#262420] hover:bg-[#e7e2d6] text-xs font-semibold rounded-xl text-[#1c1917] dark:text-white cursor-pointer"
           >
             Clear Filters
           </button>
