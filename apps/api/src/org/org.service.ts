@@ -120,7 +120,12 @@ export class OrgService {
    * Preview an invitation details before accepting
    */
   async getInvitationPreview(rawToken: string): Promise<any> {
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const cleanToken = (rawToken || '').replace(/^.*token=/, '').replace(/[^\w-]/g, '').trim();
+    if (!cleanToken) {
+      throw new NotFoundException('Invitation token is missing or malformed');
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(cleanToken).digest('hex');
 
     const invRes = await this.dataSource.query(
       `SELECT i.id, i.organization_id as "organizationId", i.role, i.email, i.expires_at as "expiresAt", i.accepted_at as "acceptedAt",
@@ -129,8 +134,8 @@ export class OrgService {
        FROM organization_invitations i
        JOIN organizations o ON o.id = i.organization_id
        LEFT JOIN users u ON u.id = i.invited_by
-       WHERE i.token_hash = $1 LIMIT 1`,
-      [tokenHash],
+       WHERE i.token_hash = $1 OR i.token_hash = $2 LIMIT 1`,
+      [tokenHash, cleanToken],
     );
 
     if (invRes.length === 0) {
@@ -158,13 +163,18 @@ export class OrgService {
    * Accept an invitation using its raw token
    */
   async acceptInvitation(rawToken: string, userId: string): Promise<any> {
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const cleanToken = (rawToken || '').replace(/^.*token=/, '').replace(/[^\w-]/g, '').trim();
+    if (!cleanToken) {
+      throw new BadRequestException('Invitation token is missing or malformed');
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(cleanToken).digest('hex');
 
     const invRes = await this.dataSource.query(
       `SELECT id, organization_id, email, role, expires_at, accepted_at
        FROM organization_invitations
-       WHERE token_hash = $1 LIMIT 1`,
-      [tokenHash],
+       WHERE token_hash = $1 OR token_hash = $2 LIMIT 1`,
+      [tokenHash, cleanToken],
     );
 
     if (invRes.length === 0) {

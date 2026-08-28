@@ -136,20 +136,110 @@ export class IssueService {
         [projectId],
       );
 
-      // 2. Fetch default status (first status in rank) if none specified
-      let statusId = dto.statusId;
-      if (!statusId) {
-        const defaultStatus = await manager.query(
-          `SELECT id FROM statuses WHERE project_id = $1 ORDER BY rank LIMIT 1`,
-          [projectId],
+      // 2. Resolve or fetch issue_type_id
+      let issueTypeId = dto.issueTypeId;
+      if (!issueTypeId) {
+        const typeCode = (dto.type || dto.issueType || 'BUG').toUpperCase();
+        const typeRes = await manager.query(
+          `SELECT id FROM issue_types WHERE project_id = $1 AND (code = $2 OR name ILIKE $2) LIMIT 1`,
+          [projectId, typeCode],
         );
-        if (defaultStatus.length === 0) {
-          throw new BadRequestException('No status configurations exist for this project.');
+        if (typeRes.length > 0) {
+          issueTypeId = typeRes[0].id;
+        } else {
+          const firstType = await manager.query(`SELECT id FROM issue_types WHERE project_id = $1 LIMIT 1`, [projectId]);
+          if (firstType.length > 0) {
+            issueTypeId = firstType[0].id;
+          } else {
+            const newType = await manager.query(
+              `INSERT INTO issue_types (project_id, name, code, is_active)
+               VALUES ($1, $2, $3, true) RETURNING id`,
+              [projectId, typeCode === 'BUG' ? 'Defect' : typeCode, typeCode],
+            );
+            issueTypeId = newType[0].id;
+          }
         }
-        statusId = defaultStatus[0].id;
       }
 
-      // 3. Insert Issue
+      // 3. Resolve default status (first status in rank) if none specified
+      let statusId = dto.statusId;
+      if (!statusId) {
+        const statusReq = (dto.status || 'OPEN').toUpperCase();
+        const statusMatch = await manager.query(
+          `SELECT id FROM statuses WHERE project_id = $1 AND (code = $2 OR name ILIKE $2) LIMIT 1`,
+          [projectId, statusReq],
+        );
+        if (statusMatch.length > 0) {
+          statusId = statusMatch[0].id;
+        } else {
+          const defaultStatus = await manager.query(
+            `SELECT id FROM statuses WHERE project_id = $1 ORDER BY rank LIMIT 1`,
+            [projectId],
+          );
+          if (defaultStatus.length === 0) {
+            const newStatus = await manager.query(
+              `INSERT INTO statuses (project_id, name, code, category, rank, is_terminal)
+               VALUES ($1, 'Open', 'OPEN', 'TODO', 1, false) RETURNING id`,
+              [projectId],
+            );
+            statusId = newStatus[0].id;
+          } else {
+            statusId = defaultStatus[0].id;
+          }
+        }
+      }
+
+      // 4. Resolve priority_id
+      let priorityId = dto.priorityId;
+      if (!priorityId && (dto.priority || (dto as any).priorityCode)) {
+        const prioCode = (dto.priority || (dto as any).priorityCode).toUpperCase();
+        const prioRes = await manager.query(
+          `SELECT id FROM priorities WHERE project_id = $1 AND (code = $2 OR name ILIKE $2) LIMIT 1`,
+          [projectId, prioCode],
+        );
+        if (prioRes.length > 0) {
+          priorityId = prioRes[0].id;
+        } else {
+          const firstPrio = await manager.query(`SELECT id FROM priorities WHERE project_id = $1 LIMIT 1`, [projectId]);
+          priorityId = firstPrio[0]?.id || null;
+        }
+      }
+
+      // 5. Resolve severity_id
+      let severityId = dto.severityId;
+      if (!severityId && (dto.severity || (dto as any).severityCode)) {
+        const sevCode = (dto.severity || (dto as any).severityCode).toUpperCase();
+        const sevRes = await manager.query(
+          `SELECT id FROM severities WHERE project_id = $1 AND (code = $2 OR name ILIKE $2) LIMIT 1`,
+          [projectId, sevCode],
+        );
+        if (sevRes.length > 0) {
+          severityId = sevRes[0].id;
+        } else {
+          const firstSev = await manager.query(`SELECT id FROM severities WHERE project_id = $1 LIMIT 1`, [projectId]);
+          severityId = firstSev[0]?.id || null;
+        }
+      }
+
+      // 6. Resolve component_id if name provided
+      let componentId = dto.componentId;
+      if (!componentId && dto.component) {
+        const compRes = await manager.query(
+          `SELECT id FROM components WHERE project_id = $1 AND name ILIKE $2 LIMIT 1`,
+          [projectId, dto.component],
+        );
+        if (compRes.length > 0) {
+          componentId = compRes[0].id;
+        } else {
+          const newComp = await manager.query(
+            `INSERT INTO components (project_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id`,
+            [projectId, dto.component],
+          );
+          componentId = newComp[0]?.id || null;
+        }
+      }
+
+      // 7. Insert Issue
       const issueInsert = await manager.query(
         `INSERT INTO issues (
           organization_id, project_id, number, issue_type_id, status_id, priority_id, severity_id,
@@ -162,11 +252,11 @@ export class IssueService {
           orgId,
           projectId,
           issueNumber,
-          dto.issueTypeId,
+          issueTypeId,
           statusId,
-          dto.priorityId || null,
-          dto.severityId || null,
-          dto.componentId || null,
+          priorityId || null,
+          severityId || null,
+          componentId || null,
           dto.versionId || null,
           dto.milestoneId || null,
           reporterId,
@@ -184,13 +274,32 @@ export class IssueService {
       );
       const issue = issueInsert[0];
 
-      // 4. Associate Labels
+      // 8. Associate Labels
       if (dto.labelIds && dto.labelIds.length > 0) {
         for (const labelId of dto.labelIds) {
           await manager.query(
             `INSERT INTO issue_labels (issue_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
             [issue.id, labelId],
           );
+        }
+      }
+      if (dto.labels && Array.isArray(dto.labels)) {
+        for (const labelName of dto.labels) {
+          if (typeof labelName === 'string' && labelName.trim()) {
+            const cleanName = labelName.trim().toLowerCase();
+            const labRes = await manager.query(
+              `INSERT INTO labels (project_id, name) VALUES ($1, $2)
+               ON CONFLICT (project_id, name) DO UPDATE SET name = EXCLUDED.name
+               RETURNING id`,
+              [projectId, cleanName],
+            );
+            if (labRes.length > 0) {
+              await manager.query(
+                `INSERT INTO issue_labels (issue_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                [issue.id, labRes[0].id],
+              );
+            }
+          }
         }
       }
 

@@ -1,44 +1,76 @@
-import { IsNotEmpty, IsString, IsUUID, IsOptional, IsInt, IsDateString, IsArray, IsObject, Length } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsInt, IsDateString, IsArray, IsObject, Length } from 'class-validator';
 
 export class CreateIssueDto {
-  @IsUUID()
-  @IsNotEmpty()
-  issueTypeId!: string;
-
   @IsString()
   @IsNotEmpty()
-  @Length(3, 200, { message: 'Issue title must be between 3 and 200 characters' })
+  @Length(2, 200, { message: 'Issue title must be between 2 and 200 characters' })
   title!: string;
+
+  @IsString()
+  @IsOptional()
+  issueTypeId?: string;
+
+  @IsString()
+  @IsOptional()
+  type?: string;
+
+  @IsString()
+  @IsOptional()
+  issueType?: string;
 
   @IsString()
   @IsOptional()
   description?: string;
 
-  @IsUUID()
+  @IsString()
   @IsOptional()
   statusId?: string;
 
-  @IsUUID()
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @IsString()
   @IsOptional()
   priorityId?: string;
 
-  @IsUUID()
+  @IsString()
+  @IsOptional()
+  priority?: string;
+
+  @IsString()
   @IsOptional()
   severityId?: string;
 
-  @IsUUID()
+  @IsString()
+  @IsOptional()
+  severity?: string;
+
+  @IsString()
   @IsOptional()
   componentId?: string;
 
-  @IsUUID()
+  @IsString()
+  @IsOptional()
+  component?: string;
+
+  @IsString()
   @IsOptional()
   versionId?: string;
 
-  @IsUUID()
+  @IsString()
+  @IsOptional()
+  version?: string;
+
+  @IsString()
   @IsOptional()
   milestoneId?: string;
 
-  @IsUUID()
+  @IsString()
+  @IsOptional()
+  milestone?: string;
+
+  @IsString()
   @IsOptional()
   assigneeId?: string;
 
@@ -71,9 +103,12 @@ export class CreateIssueDto {
   dueDate?: string;
 
   @IsArray()
-  @IsUUID('all', { each: true })
   @IsOptional()
   labelIds?: string[];
+
+  @IsArray()
+  @IsOptional()
+  labels?: string[];
 
   @IsObject()
   @IsOptional()
