@@ -1,0 +1,26 @@
+{
+  "name": "forgetrack-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ForgeTrack Monorepo for modern engineering issue tracking",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=@forgetrack/api\" \"npm run dev --workspace=@forgetrack/web\"",
+    "build": "npm run build --workspace=@forgetrack/contracts --workspace=@forgetrack/shared && npm run build --workspace=@forgetrack/api --workspace=@forgetrack/web",
+    "docker:up": "node scripts/docker-compose.js up",
+    "docker:down": "node scripts/docker-compose.js down",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "prettier": "^3.3.3",
+    "eslint": "^8.57.0",
+    "@types/node": "^20.14.9",
+    "concurrently": "^8.2.2"
+  }
+}
