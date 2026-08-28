@@ -17,8 +17,9 @@ export class IssueService {
   /**
    * Helper to fetch full issue context, labels, and custom field values
    */
-  private async fetchFullIssue(issueId: string): Promise<any> {
-    const issueRes = await this.dataSource.query(
+  private async fetchFullIssue(issueId: string, runner?: any): Promise<any> {
+    const db = runner || this.dataSource;
+    const issueRes = await db.query(
       `SELECT 
         i.id, i.organization_id as "organizationId", i.project_id as "projectId", i.number,
         p.key as "projectKey", p.name as "projectName",
@@ -60,7 +61,7 @@ export class IssueService {
     const issue = issueRes[0];
 
     // Fetch Labels
-    const labels = await this.dataSource.query(
+    const labels = await db.query(
       `SELECT l.id, l.name FROM labels l
        JOIN issue_labels il ON il.label_id = l.id
        WHERE il.issue_id = $1`,
@@ -68,7 +69,7 @@ export class IssueService {
     );
 
     // Fetch Custom Field Values
-    const customValues = await this.dataSource.query(
+    const customValues = await db.query(
       `SELECT cf.key, cf.field_type as "fieldType",
               icv.text_value, icv.number_value, icv.boolean_value,
               icv.date_value, icv.datetime_value, icv.json_value
@@ -232,12 +233,26 @@ export class IssueService {
           componentId = compRes[0].id;
         } else {
           const newComp = await manager.query(
-            `INSERT INTO components (project_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id`,
+            `INSERT INTO components (project_id, name) VALUES ($1, $2)
+             ON CONFLICT (project_id, name) DO UPDATE SET name = EXCLUDED.name
+             RETURNING id`,
             [projectId, dto.component],
           );
           componentId = newComp[0]?.id || null;
         }
       }
+
+      const isValidUuid = (val?: any): boolean =>
+        typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
+      const cleanAssigneeId = isValidUuid(dto.assigneeId) ? dto.assigneeId : null;
+      const cleanVersionId = isValidUuid(dto.versionId) ? dto.versionId : null;
+      const cleanMilestoneId = isValidUuid(dto.milestoneId) ? dto.milestoneId : null;
+      const cleanComponentId = isValidUuid(componentId) ? componentId : null;
+      const cleanPriorityId = isValidUuid(priorityId) ? priorityId : null;
+      const cleanSeverityId = isValidUuid(severityId) ? severityId : null;
+      const cleanIssueTypeId = isValidUuid(issueTypeId) ? issueTypeId : null;
+      const cleanStatusId = isValidUuid(statusId) ? statusId : null;
 
       // 7. Insert Issue
       const issueInsert = await manager.query(
@@ -252,15 +267,15 @@ export class IssueService {
           orgId,
           projectId,
           issueNumber,
-          issueTypeId,
-          statusId,
-          priorityId || null,
-          severityId || null,
-          componentId || null,
-          dto.versionId || null,
-          dto.milestoneId || null,
+          cleanIssueTypeId,
+          cleanStatusId,
+          cleanPriorityId,
+          cleanSeverityId,
+          cleanComponentId,
+          cleanVersionId,
+          cleanMilestoneId,
           reporterId,
-          dto.assigneeId || null,
+          cleanAssigneeId,
           dto.title,
           dto.description || null,
           dto.reproductionSteps || null,
@@ -277,10 +292,12 @@ export class IssueService {
       // 8. Associate Labels
       if (dto.labelIds && dto.labelIds.length > 0) {
         for (const labelId of dto.labelIds) {
-          await manager.query(
-            `INSERT INTO issue_labels (issue_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-            [issue.id, labelId],
-          );
+          if (isValidUuid(labelId)) {
+            await manager.query(
+              `INSERT INTO issue_labels (issue_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+              [issue.id, labelId],
+            );
+          }
         }
       }
       if (dto.labels && Array.isArray(dto.labels)) {
@@ -362,14 +379,21 @@ export class IssueService {
       }
 
       // 6. Log Transactional Outbox Event
-      await this.notificationService.logOutboxEvent(manager, orgId, 'issue_created', {
-        id: issue.id,
-        projectId,
-        projectKey: project.key,
-        number: issueNumber,
-        title: dto.title,
-        assigneeId: dto.assigneeId || null,
-      });
+      await this.notificationService.logOutboxEvent(
+        manager,
+        orgId,
+        'issue_created',
+        {
+          id: issue.id,
+          projectId,
+          projectKey: project.key,
+          number: issueNumber,
+          title: dto.title,
+          assigneeId: cleanAssigneeId,
+        },
+        'issue',
+        issue.id,
+      );
 
       // 7. Write audit log for issue creation
       await this.auditService.logEvent(
@@ -378,7 +402,7 @@ export class IssueService {
         null, { title: dto.title, number: issueNumber }, {},
       );
 
-      return this.fetchFullIssue(issue.id);
+      return this.fetchFullIssue(issue.id, manager);
     });
   }
 

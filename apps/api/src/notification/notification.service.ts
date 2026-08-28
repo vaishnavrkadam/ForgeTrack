@@ -13,11 +13,18 @@ export class NotificationService {
   /**
    * Write an event log to outbox_events table within the active transaction manager
    */
-  async logOutboxEvent(manager: EntityManager, orgId: string, eventType: string, payload: any): Promise<void> {
+  async logOutboxEvent(
+    manager: EntityManager,
+    orgId: string,
+    eventType: string,
+    payload: any,
+    aggregateType: string = 'issue',
+    aggregateId?: string,
+  ): Promise<void> {
     await manager.query(
-      `INSERT INTO outbox_events (organization_id, event_type, payload)
-       VALUES ($1, $2, $3::jsonb)`,
-      [orgId, eventType, JSON.stringify(payload)],
+      `INSERT INTO outbox_events (organization_id, event_type, aggregate_type, aggregate_id, payload)
+       VALUES ($1, $2, $3, $4, $5::jsonb)`,
+      [orgId, eventType, aggregateType, aggregateId || payload?.id || null, JSON.stringify(payload)],
     );
   }
 

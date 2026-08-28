@@ -79,10 +79,21 @@ export class AuthController {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    const frontendUrl = (state && state.startsWith('http'))
-      ? state.replace(/\/$/, '')
-      : (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-    res.redirect(`${frontendUrl}/auth/callback?sid=${token}`);
+    let redirectTarget = '';
+    if (state && state.startsWith('http')) {
+      try {
+        const parsed = new URL(state);
+        parsed.searchParams.set('sid', token);
+        redirectTarget = parsed.toString();
+      } catch {
+        const origin = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+        redirectTarget = `${origin}/auth/callback?sid=${token}`;
+      }
+    } else {
+      const origin = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+      redirectTarget = `${origin}/auth/callback?sid=${token}`;
+    }
+    res.redirect(redirectTarget);
   }
 
   /**
@@ -121,10 +132,21 @@ export class AuthController {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    const frontendUrl = (state && state.startsWith('http'))
-      ? state.replace(/\/$/, '')
-      : (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-    res.redirect(`${frontendUrl}/auth/callback?sid=${token}`);
+    let redirectTarget = '';
+    if (state && state.startsWith('http')) {
+      try {
+        const parsed = new URL(state);
+        parsed.searchParams.set('sid', token);
+        redirectTarget = parsed.toString();
+      } catch {
+        const origin = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+        redirectTarget = `${origin}/auth/callback?sid=${token}`;
+      }
+    } else {
+      const origin = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+      redirectTarget = `${origin}/auth/callback?sid=${token}`;
+    }
+    res.redirect(redirectTarget);
   }
 
   @Post('logout')

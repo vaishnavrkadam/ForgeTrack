@@ -21,6 +21,14 @@ function JoinContent() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    const sid = searchParams.get('sid');
+    if (sid) {
+      localStorage.setItem('forgetrack_token', sid);
+      document.cookie = `sid=${sid}; path=/; max-age=604800; SameSite=Lax`;
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!token) {
       setErrorMsg('No invitation token provided.');
       setIsLoading(false);
