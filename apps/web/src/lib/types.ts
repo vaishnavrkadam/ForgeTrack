@@ -1,4 +1,4 @@
-﻿export interface ProjectData {
+export interface ProjectData {
   id: string;
   key: string;
   name: string;
@@ -55,4 +55,13 @@ export interface CiRunData {
   status: 'SUCCESS' | 'FAILED' | 'RUNNING';
   url: string;
   startedAt: string;
+}
+
+export interface UserData {
+  id: string;
+  email: string;
+  displayName: string;
+  avatarUrl?: string;
+  provider: 'github' | 'google' | 'email';
+  role: string;
 }

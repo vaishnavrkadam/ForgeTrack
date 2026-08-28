@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { useStore } from '../../lib/store';
@@ -7,7 +7,7 @@ import { BugMascot } from '../mascot/BugMascot';
 import { SparklesIcon, PlusIcon } from '../ui/Icons';
 
 export const DashboardView: React.FC = () => {
-  const { issues, releases, selectedProject, setSelectedIssue, setIsCreateModalOpen, setActiveTab } = useStore();
+  const { issues, releases, selectedProject, setSelectedIssue, setIsCreateModalOpen, setActiveTab, currentUser } = useStore();
   const { playHoverSound } = useSound();
 
   // Filter issues for the currently selected project
@@ -29,7 +29,7 @@ export const DashboardView: React.FC = () => {
             </span>
           </div>
           <h1 className="text-2xl font-extrabold text-[#1c1917] dark:text-white tracking-tight">
-            Good day, Alex 👋
+            Good day, {currentUser?.displayName || 'Engineer'} 👋
           </h1>
           <p className="text-xs text-[#78716c] max-w-lg">
             {openIssues.length} active issues in <span className="font-semibold text-[#1c1917] dark:text-white">{selectedProject.name}</span>. {selectedProject.description}.

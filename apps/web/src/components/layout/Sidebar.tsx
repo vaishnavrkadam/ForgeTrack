@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { useStore } from '../../lib/store';
@@ -84,12 +84,14 @@ export const Sidebar: React.FC = () => {
         })}
       </div>
 
-      {/* Mascot Card at Sidebar Bottom */}
-      <div className="p-3 bg-gradient-to-b from-[#f5f0e6] to-[#eae3d2] dark:from-[#1c1b18] dark:to-[#262420] border border-[#e7e2d6] dark:border-[#33302a] rounded-2xl flex items-center gap-3">
-        <BugMascot state="working" size={32} interactive className="animate-bug-bounce" />
-        <div className="text-[11px] leading-tight">
-          <div className="font-bold text-[#1c1917] dark:text-white">{selectedProject.key} Active</div>
-          <div className="text-[#78716c] text-[10px]">Zero bugs escape.</div>
+      {/* Mascot Card & Quick Profile Actions at Sidebar Bottom */}
+      <div className="space-y-2">
+        <div className="p-3 bg-gradient-to-b from-[#f5f0e6] to-[#eae3d2] dark:from-[#1c1b18] dark:to-[#262420] border border-[#e7e2d6] dark:border-[#33302a] rounded-2xl flex items-center gap-3">
+          <BugMascot state="working" size={32} interactive className="animate-bug-bounce" />
+          <div className="text-[11px] leading-tight">
+            <div className="font-bold text-[#1c1917] dark:text-white">{selectedProject.key} Active</div>
+            <div className="text-[#78716c] text-[10px]">Zero bugs escape.</div>
+          </div>
         </div>
       </div>
     </aside>

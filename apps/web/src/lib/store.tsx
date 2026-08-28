@@ -1,171 +1,50 @@
-﻿'use client';
+'use client';
 
-import React, { createContext, useContext, useState } from 'react';
-import { IssueData, ProjectData, ReleaseData, WebhookData, CiRunData } from './types';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { IssueData, ProjectData, ReleaseData, WebhookData, CiRunData, UserData } from './types';
 
 const INITIAL_PROJECTS: ProjectData[] = [
-  { id: 'proj-1', key: 'FORGE', name: 'ForgeTrack Core Engine', description: 'Core issue tracking backend & workflow engine', issueCount: 28 },
-  { id: 'proj-2', key: 'WEB', name: 'Web Dashboard & UI', description: 'Next.js frontend application and interaction design', issueCount: 14 },
-  { id: 'proj-3', key: 'AI', name: 'AI Intelligence Pipeline', description: 'Embeddings, duplicate detection & triage classifiers', issueCount: 8 },
-];
-
-const INITIAL_ISSUES: IssueData[] = [
-  {
-    id: 'iss-101',
-    key: 'FORGE-101',
-    number: 101,
-    title: 'Atomic issue counter lock during high concurrency',
-    description: 'Ensure postgres row-level lock `FOR UPDATE` prevents duplicate sequence numbers under burst creation traffic.',
-    type: 'BUG',
-    status: 'IN PROGRESS',
-    statusCategory: 'IN_PROGRESS',
-    priority: 'URGENT',
-    severity: 'BLOCKER',
-    component: 'Database',
-    version: 'v1.4.0',
-    milestone: 'Sprint 24',
-    assigneeName: 'Alex Chen',
-    reporterName: 'Sarah Miller',
-    createdAt: '2026-08-27T10:30:00Z',
-    updatedAt: '2026-08-28T08:15:00Z',
-    labels: ['concurrency', 'database', 'critical'],
-    commentsCount: 5,
-  },
-  {
-    id: 'iss-102',
-    key: 'WEB-42',
-    number: 42,
-    title: 'Implement custom bug cursor with requestAnimationFrame smoothing',
-    description: 'Cursor should squash on click and peek towards hoverable primary buttons without causing React re-renders.',
-    type: 'FEATURE',
-    status: 'RESOLVED',
-    statusCategory: 'DONE',
-    priority: 'HIGH',
-    severity: 'MAJOR',
-    component: 'UI/UX',
-    version: 'v1.5.0',
-    milestone: 'Sprint 24',
-    assigneeName: 'Elena Rostova',
-    reporterName: 'Alex Chen',
-    createdAt: '2026-08-27T14:20:00Z',
-    updatedAt: '2026-08-28T07:45:00Z',
-    labels: ['frontend', 'cursor', 'animation'],
-    commentsCount: 3,
-  },
-  {
-    id: 'iss-103',
-    key: 'AI-18',
-    number: 18,
-    title: 'Semantic duplicate candidate scoring threshold optimization',
-    description: 'Tune cosine similarity cutoff to 0.70 with Reciprocal Rank Fusion on hybrid SQL + vector queries.',
-    type: 'TASK',
-    status: 'OPEN',
-    statusCategory: 'TODO',
-    priority: 'MEDIUM',
-    severity: 'MAJOR',
-    component: 'AI Engine',
-    version: 'v1.5.0',
-    milestone: 'Sprint 25',
-    assigneeName: 'Marcus Vance',
-    reporterName: 'Sarah Miller',
-    createdAt: '2026-08-28T04:10:00Z',
-    updatedAt: '2026-08-28T04:10:00Z',
-    labels: ['ai', 'embeddings', 'vector'],
-    commentsCount: 1,
-  },
-  {
-    id: 'iss-104',
-    key: 'FORGE-104',
-    number: 104,
-    title: 'Webhook HMAC signature validation and exponential backoff retry',
-    description: 'Verify `X-Hub-Signature-256` for incoming git events and schedule exponential retries for failed outbound webhook endpoints.',
-    type: 'FEATURE',
-    status: 'IN PROGRESS',
-    statusCategory: 'IN_PROGRESS',
-    priority: 'HIGH',
-    severity: 'MAJOR',
-    component: 'Integrations',
-    version: 'v1.4.0',
-    milestone: 'Sprint 24',
-    assigneeName: 'Alex Chen',
-    reporterName: 'Elena Rostova',
-    createdAt: '2026-08-26T09:00:00Z',
-    updatedAt: '2026-08-28T06:30:00Z',
-    labels: ['webhooks', 'security', 'git'],
-    commentsCount: 4,
-  },
-  {
-    id: 'iss-105',
-    key: 'FORGE-105',
-    number: 105,
-    title: 'SSRF URL validation on outbound integration endpoints',
-    description: 'Block loopback addresses, private IP ranges, and cloud metadata services (169.254.169.254).',
-    type: 'BUG',
-    status: 'RESOLVED',
-    statusCategory: 'DONE',
-    priority: 'URGENT',
-    severity: 'CRITICAL',
-    component: 'Security',
-    version: 'v1.4.0',
-    milestone: 'Sprint 24',
-    assigneeName: 'Sarah Miller',
-    reporterName: 'Alex Chen',
-    createdAt: '2026-08-25T11:00:00Z',
-    updatedAt: '2026-08-28T05:20:00Z',
-    labels: ['security', 'ssrf', 'hardening'],
-    commentsCount: 6,
-  },
+  { id: 'proj-1', key: 'FORGE', name: 'ForgeTrack Core Engine', description: 'Core issue tracking backend & workflow engine', issueCount: 0 },
+  { id: 'proj-2', key: 'WEB', name: 'Web Dashboard & UI', description: 'Next.js frontend application and interaction design', issueCount: 0 },
+  { id: 'proj-3', key: 'AI', name: 'AI Intelligence Pipeline', description: 'Embeddings, duplicate detection & triage classifiers', issueCount: 0 },
 ];
 
 const INITIAL_RELEASES: ReleaseData[] = [
   {
     id: 'rel-1',
-    name: 'v1.4.0 — Security & Webhooks Release',
-    status: 'PLANNED',
-    releaseDate: '2026-09-02',
-    totalIssues: 12,
-    doneIssues: 9,
-    blockingDefects: 0,
-    ciPassRate: 98,
-    health: 'HEALTHY',
-  },
-  {
-    id: 'rel-2',
-    name: 'v1.5.0 — AI & Experience Overhaul',
+    name: 'v1.0.0 — Production Release',
     status: 'ACTIVE',
-    releaseDate: '2026-09-18',
-    totalIssues: 24,
-    doneIssues: 11,
-    blockingDefects: 1,
-    ciPassRate: 88,
-    health: 'AT_RISK',
+    releaseDate: '2026-09-01',
+    totalIssues: 0,
+    doneIssues: 0,
+    blockingDefects: 0,
+    ciPassRate: 100,
+    health: 'HEALTHY',
   },
 ];
 
 const INITIAL_WEBHOOKS: WebhookData[] = [
   {
     id: 'wh-1',
-    url: 'https://ci-runner.internal.acme/webhook/builds',
+    url: 'https://api.github.com/repos/vaishnavrkadam/ForgeTrack/webhooks',
     events: ['issue.created', 'issue.updated', 'issue.transitioned'],
     isEnabled: true,
-    createdAt: '2026-08-26T12:00:00Z',
-  },
-  {
-    id: 'wh-2',
-    url: 'https://discord.com/api/webhooks/12345/alerts',
-    events: ['release.published', 'defect.blocker'],
-    isEnabled: true,
-    createdAt: '2026-08-27T08:00:00Z',
+    createdAt: new Date().toISOString(),
   },
 ];
 
 const INITIAL_CI_RUNS: CiRunData[] = [
-  { id: 'ci-1', commitSha: 'a1b2c3d4', workflowName: 'Build & Unit Tests', status: 'SUCCESS', url: 'https://github.com/acme/forgetrack/actions/runs/101', startedAt: '12 mins ago' },
-  { id: 'ci-2', commitSha: 'e5f6g7h8', workflowName: 'E2E Matrix & Security Scan', status: 'SUCCESS', url: 'https://github.com/acme/forgetrack/actions/runs/102', startedAt: '35 mins ago' },
-  { id: 'ci-3', commitSha: 'k9l0m1n2', workflowName: 'Docker Production Artifacts', status: 'RUNNING', url: 'https://github.com/acme/forgetrack/actions/runs/103', startedAt: '3 mins ago' },
+  { id: 'ci-1', commitSha: 'main-latest', workflowName: 'Build & Unit Tests', status: 'SUCCESS', url: 'https://github.com/vaishnavrkadam/ForgeTrack/actions', startedAt: 'Just now' },
 ];
 
 interface StoreContextType {
+  currentUser: UserData | null;
+  login: (provider: 'github' | 'google' | 'email', displayName?: string, email?: string, avatarUrl?: string) => void;
+  logout: () => void;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  viewMode: 'app' | 'landing';
+  setViewMode: (mode: 'app' | 'landing') => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   selectedProject: ProjectData;
@@ -200,10 +79,14 @@ export const useStore = () => {
 };
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<UserData | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'app' | 'landing'>('landing');
+
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [projects] = useState<ProjectData[]>(INITIAL_PROJECTS);
   const [selectedProject, setSelectedProject] = useState<ProjectData>(INITIAL_PROJECTS[0]);
-  const [issues, setIssues] = useState<IssueData[]>(INITIAL_ISSUES);
+  const [issues, setIssues] = useState<IssueData[]>([]);
   const [releases] = useState<ReleaseData[]>(INITIAL_RELEASES);
   const [webhooks] = useState<WebhookData[]>(INITIAL_WEBHOOKS);
   const [ciRuns] = useState<CiRunData[]>(INITIAL_CI_RUNS);
@@ -213,6 +96,75 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterPriority, setFilterPriority] = useState<string>('ALL');
+
+  // Hydrate from localStorage
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('forgetrack_user');
+      if (savedUser) {
+        const parsedUser = JSON.parse(savedUser);
+        setCurrentUser(parsedUser);
+        setViewMode('app');
+      }
+
+      const savedIssues = localStorage.getItem('forgetrack_issues');
+      if (savedIssues) {
+        setIssues(JSON.parse(savedIssues));
+      }
+    } catch {
+      // Ignored
+    }
+  }, []);
+
+  const login = (
+    provider: 'github' | 'google' | 'email',
+    displayName?: string,
+    email?: string,
+    avatarUrl?: string,
+  ) => {
+    let defaultName = 'Developer';
+    let defaultEmail = 'developer@forgetrack.dev';
+
+    if (provider === 'github') {
+      defaultName = displayName || 'GitHub Engineer';
+      defaultEmail = email || 'github-user@users.noreply.github.com';
+    } else if (provider === 'google') {
+      defaultName = displayName || 'Google User';
+      defaultEmail = email || 'google-user@gmail.com';
+    } else {
+      defaultName = displayName || 'Engineering Lead';
+      defaultEmail = email || 'engineer@company.com';
+    }
+
+    const user: UserData = {
+      id: `usr-${Date.now()}`,
+      email: defaultEmail,
+      displayName: defaultName,
+      avatarUrl: avatarUrl || undefined,
+      provider,
+      role: 'Lead Architect',
+    };
+
+    setCurrentUser(user);
+    setViewMode('app');
+    setIsAuthModalOpen(false);
+
+    try {
+      localStorage.setItem('forgetrack_user', JSON.stringify(user));
+    } catch {
+      // Ignored
+    }
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    setViewMode('landing');
+    try {
+      localStorage.removeItem('forgetrack_user');
+    } catch {
+      // Ignored
+    }
+  };
 
   const createIssue = (data: Partial<IssueData>) => {
     const nextNum = issues.length + 101;
@@ -228,34 +180,54 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       priority: data.priority || 'MEDIUM',
       severity: data.severity || 'MAJOR',
       component: data.component || 'General',
-      version: data.version || 'v1.5.0',
-      milestone: data.milestone || 'Sprint 25',
-      assigneeName: data.assigneeName || 'Unassigned',
-      reporterName: 'You (Current User)',
+      version: data.version || 'v1.0.0',
+      milestone: data.milestone || 'Sprint 1',
+      assigneeName: data.assigneeName || currentUser?.displayName || 'Unassigned',
+      reporterName: currentUser?.displayName || 'Current User',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       labels: data.labels || [],
       commentsCount: 0,
     };
 
-    setIssues(prev => [newIssue, ...prev]);
+    const updated = [newIssue, ...issues];
+    setIssues(updated);
     setSelectedIssue(newIssue);
+
+    try {
+      localStorage.setItem('forgetrack_issues', JSON.stringify(updated));
+    } catch {
+      // Ignored
+    }
   };
 
   const updateIssueStatus = (issueId: string, status: string, category: 'TODO' | 'IN_PROGRESS' | 'DONE') => {
-    setIssues(prev =>
-      prev.map(i =>
-        i.id === issueId ? { ...i, status, statusCategory: category, updatedAt: new Date().toISOString() } : i,
-      ),
+    const updated = issues.map(i =>
+      i.id === issueId ? { ...i, status, statusCategory: category, updatedAt: new Date().toISOString() } : i,
     );
+    setIssues(updated);
+
     if (selectedIssue && selectedIssue.id === issueId) {
       setSelectedIssue(prev => (prev ? { ...prev, status, statusCategory: category } : null));
+    }
+
+    try {
+      localStorage.setItem('forgetrack_issues', JSON.stringify(updated));
+    } catch {
+      // Ignored
     }
   };
 
   return (
     <StoreContext.Provider
       value={{
+        currentUser,
+        login,
+        logout,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        viewMode,
+        setViewMode,
         activeTab,
         setActiveTab,
         selectedProject,

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { useStore } from '../../lib/store';
@@ -7,13 +7,10 @@ import { BugMascot } from '../mascot/BugMascot';
 import { CloseIcon, SparklesIcon, CheckIcon } from '../ui/Icons';
 
 export const IssueDetailView: React.FC = () => {
-  const { selectedIssue, setSelectedIssue, updateIssueStatus, ciRuns } = useStore();
+  const { selectedIssue, setSelectedIssue, updateIssueStatus, ciRuns, currentUser } = useStore();
   const { playSuccessSound, playHoverSound } = useSound();
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState<Array<{ id: string; user: string; text: string; time: string }>>([
-    { id: 'c1', user: 'Sarah Miller', text: 'Confirmed database deadlocks under 500 concurrent connection bursts. Adding indexing patch.', time: '2 hours ago' },
-    { id: 'c2', user: 'Alex Chen', text: 'Drafted PR #42 with row-level locking. Running full regression suite.', time: '45 mins ago' },
-  ]);
+  const [comments, setComments] = useState<Array<{ id: string; user: string; text: string; time: string }>>([]);
 
   if (!selectedIssue) return null;
 
@@ -30,7 +27,12 @@ export const IssueDetailView: React.FC = () => {
 
     setComments(prev => [
       ...prev,
-      { id: `c-${Date.now()}`, user: 'You (Alex Chen)', text: commentText.trim(), time: 'Just now' },
+      {
+        id: `c-${Date.now()}`,
+        user: currentUser?.displayName ? `You (${currentUser.displayName})` : 'You',
+        text: commentText.trim(),
+        time: 'Just now',
+      },
     ]);
     setCommentText('');
     playSuccessSound();

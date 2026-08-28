@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { useStore } from '../../lib/store';
+import { LandingPage } from '../landing/LandingPage';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { DashboardView } from './DashboardView';
@@ -14,9 +15,19 @@ import { SettingsView } from '../settings/SettingsView';
 import { CreateIssueModal } from '../issues/CreateIssueModal';
 import { IssueDetailView } from '../issues/IssueDetailView';
 import { CommandPalette } from '../command/CommandPalette';
+import { AuthModal } from '../auth/AuthModal';
 
 export const AppShell: React.FC = () => {
-  const { activeTab } = useStore();
+  const { activeTab, viewMode } = useStore();
+
+  if (viewMode === 'landing') {
+    return (
+      <>
+        <LandingPage />
+        <AuthModal />
+      </>
+    );
+  }
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -53,6 +64,7 @@ export const AppShell: React.FC = () => {
       <CreateIssueModal />
       <IssueDetailView />
       <CommandPalette />
+      <AuthModal />
     </div>
   );
 };

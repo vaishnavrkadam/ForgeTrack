@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../../lib/store';
@@ -13,6 +13,7 @@ export const CreateIssueModal: React.FC = () => {
     createIssue,
     selectedProject,
     issues,
+    currentUser,
   } = useStore();
 
   const { playSuccessSound, playHoverSound } = useSound();
@@ -23,7 +24,7 @@ export const CreateIssueModal: React.FC = () => {
   const [priority, setPriority] = useState('HIGH');
   const [severity, setSeverity] = useState('MAJOR');
   const [component, setComponent] = useState('Core Engine');
-  const [assigneeName, setAssigneeName] = useState('Alex Chen');
+  const [assigneeName, setAssigneeName] = useState(currentUser?.displayName || 'Developer');
   const [previewTab, setPreviewTab] = useState<'write' | 'preview'>('write');
 
   // Real-time AI Duplicate Warning computation

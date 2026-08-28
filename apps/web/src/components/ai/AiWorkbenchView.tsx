@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { useStore } from '../../lib/store';
@@ -15,11 +15,7 @@ export const AiWorkbenchView: React.FC = () => {
   const [testDesc, setTestDesc] = useState('Checkout returns 504 gateway timeout when card authorization exceeds 30s. Reproduction: step 1, load checkout; step 2, click pay.');
   const [semanticQuery, setSemanticQuery] = useState('deadlock on sequence counters');
 
-  const [suggestions, setSuggestions] = useState<Array<{ id: string; type: string; title: string; confidence: number; status: 'PENDING' | 'ACCEPTED' | 'REJECTED' }>>([
-    { id: 's1', type: 'DUPLICATE', title: 'FORGE-101 is 88% similar to FORGE-42', confidence: 0.88, status: 'PENDING' },
-    { id: 's2', type: 'TRIAGE', title: 'Suggested Priority: URGENT, Component: Database for FORGE-101', confidence: 0.92, status: 'PENDING' },
-    { id: 's3', type: 'QUALITY', title: 'Issue WEB-42 scored 90/100 completeness with reproduction steps', confidence: 0.90, status: 'ACCEPTED' },
-  ]);
+  const [suggestions, setSuggestions] = useState<Array<{ id: string; type: string; title: string; confidence: number; status: 'PENDING' | 'ACCEPTED' | 'REJECTED' }>>([]);
 
   const handleAccept = (id: string) => {
     setSuggestions(prev => prev.map(s => s.id === id ? { ...s, status: 'ACCEPTED' } : s));

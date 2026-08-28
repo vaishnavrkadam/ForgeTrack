@@ -1,6 +1,6 @@
-﻿'use client';
+'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../../lib/store';
 import { useSound } from '../sound/SoundProvider';
 import { useCursor } from '../cursor/BugCursor';
@@ -16,10 +16,33 @@ export const TopBar: React.FC = () => {
     setIsCommandPaletteOpen,
     searchQuery,
     setSearchQuery,
+    currentUser,
+    logout,
+    setIsAuthModalOpen,
+    setViewMode,
   } = useStore();
 
-  const { soundEnabled, setSoundEnabled } = useSound();
+  const { soundEnabled, setSoundEnabled, playClickSound } = useSound();
   const { cursorMode, setCursorMode } = useCursor();
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.substring(0, 2).toUpperCase() || 'FT';
+  };
 
   return (
     <header className="h-14 border-b border-[#e7e2d6] dark:border-[#33302a] bg-white dark:bg-[#1c1b18] px-4 flex items-center justify-between sticky top-0 z-30 select-none">
@@ -125,10 +148,72 @@ export const TopBar: React.FC = () => {
           <kbd className="text-[10px] bg-black/10 px-1 py-0.2 rounded font-mono">C</kbd>
         </button>
 
-        {/* User Avatar */}
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#ff7a38] to-[#ff6b57] text-white text-xs font-bold flex items-center justify-center shadow-xs border-2 border-white dark:border-[#1c1b18]">
-          AC
-        </div>
+        {/* Profile Avatar / Login Button */}
+        {currentUser ? (
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => {
+                playClickSound();
+                setIsProfileMenuOpen(!isProfileMenuOpen);
+              }}
+              className="flex items-center gap-2 pl-1 pr-2 py-1 bg-[#f5f0e6] dark:bg-[#262420] border border-[#e7e2d6] dark:border-[#33302a] hover:border-[#d6cfbe] rounded-full transition-all cursor-pointer"
+            >
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#ff7a38] to-[#ff6b57] text-white text-xs font-bold flex items-center justify-center shadow-xs">
+                {getInitials(currentUser.displayName)}
+              </div>
+              <span className="text-xs font-bold text-[#1c1917] dark:text-white max-w-[100px] truncate">
+                {currentUser.displayName}
+              </span>
+              <span className="text-[10px] text-[#78716c]">▼</span>
+            </button>
+
+            {/* Dropdown Menu */}
+            {isProfileMenuOpen && (
+              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#1c1b18] border border-[#e7e2d6] dark:border-[#33302a] rounded-2xl shadow-xl p-2 z-50 animate-fade-in space-y-1">
+                <div className="px-3 py-2 border-b border-[#f5f0e6] dark:border-[#262420]">
+                  <div className="text-xs font-bold text-[#1c1917] dark:text-white">{currentUser.displayName}</div>
+                  <div className="text-[11px] text-[#78716c] truncate">{currentUser.email}</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[#ccee22]/30 text-[#1c1917] dark:text-[#d4f033] rounded font-bold uppercase">
+                      {currentUser.provider}
+                    </span>
+                    <span className="text-[10px] text-[#a8a29e]">• {currentUser.role}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    setViewMode('landing');
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-[#1c1917] dark:text-white hover:bg-[#f5f0e6] dark:hover:bg-[#262420] rounded-xl transition-colors cursor-pointer"
+                >
+                  🏠 Landing Page
+                </button>
+
+                <div className="h-px bg-[#e7e2d6] dark:bg-[#33302a] my-1" />
+
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-bold text-[#ef4444] hover:bg-[#ef4444]/10 rounded-xl transition-colors flex items-center justify-between cursor-pointer"
+                >
+                  <span>Sign Out</span>
+                  <span>⎋</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsAuthModalOpen(true)}
+            className="px-3.5 py-1.5 bg-[#1c1917] dark:bg-white text-white dark:text-[#1c1917] text-xs font-bold rounded-xl shadow-xs hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            Sign In
+          </button>
+        )}
       </div>
     </header>
   );
