@@ -24,8 +24,8 @@ ForgeTrack is built as an npm monorepo containing:
 2. **Deploy NestJS API Service**:
    - Connect your GitHub repository (`https://github.com/vaishnavrkadam/ForgeTrack`).
    - Configure build and start settings:
-     - **Build Command**: `npm install && npm run build --workspace=@forgetrack/contracts --workspace=@forgetrack/shared && npm run build --workspace=@forgetrack/api`
-     - **Start Command**: `npm run start --workspace=@forgetrack/api`
+     - **Build Command**: `npm install && npm run build:api`
+     - **Start Command**: `npm run start:api`
    - **Environment Variables**:
      ```env
      NODE_ENV=production
@@ -50,10 +50,11 @@ ForgeTrack is built as an npm monorepo containing:
    - Go to [Vercel](https://vercel.com) and click **Add New Project**.
    - Select your repository `vaishnavrkadam/ForgeTrack`.
 2. **Configure Project Settings**:
-   - **Root Directory**: `apps/web` (or leave root and configure root install).
-   - **Framework Preset**: Next.js.
-   - **Build Command**: `npm run build --workspace=@forgetrack/contracts --workspace=@forgetrack/shared && npm run build --workspace=@forgetrack/web`
-   - **Output Directory**: `.next`
+   - **Root Directory**: Leave as `./` (Root directory of repository).
+   - **Framework Preset**: `Next.js`.
+   - **Build Command**: `npm run build:web`
+   - **Output Directory**: `apps/web/.next` (or leave default when building via monorepo script).
+   - **Install Command**: `npm install`
 3. **Environment Variables**:
    ```env
    NEXT_PUBLIC_API_URL=https://<your-api-domain>.onrender.com/api/v1

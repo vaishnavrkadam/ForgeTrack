@@ -10,17 +10,23 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=@forgetrack/api\" \"npm run dev --workspace=@forgetrack/web\"",
     "build": "npm run build --workspace=@forgetrack/contracts --workspace=@forgetrack/shared && npm run build --workspace=@forgetrack/api --workspace=@forgetrack/web",
+    "build:api": "npm run build --workspace=@forgetrack/contracts --workspace=@forgetrack/shared && npm run build --workspace=@forgetrack/api",
+    "build:web": "npm run build --workspace=@forgetrack/contracts --workspace=@forgetrack/shared && npm run build --workspace=@forgetrack/web",
+    "start:api": "npm run start --workspace=@forgetrack/api",
+    "start:web": "npm run start --workspace=@forgetrack/web",
     "docker:up": "node scripts/docker-compose.js up",
     "docker:down": "node scripts/docker-compose.js down",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
   },
-  "devDependencies": {
+  "dependencies": {
     "typescript": "^5.5.4",
+    "@types/node": "^20.14.9"
+  },
+  "devDependencies": {
     "prettier": "^3.3.3",
     "eslint": "^8.57.0",
-    "@types/node": "^20.14.9",
     "concurrently": "^8.2.2"
   }
 }
