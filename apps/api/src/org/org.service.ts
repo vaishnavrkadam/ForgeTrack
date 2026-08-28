@@ -180,13 +180,27 @@ export class OrgService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      // Add or update membership
+      // Add or update membership with refreshed joined_at
       await manager.query(
         `INSERT INTO organization_members (organization_id, user_id, role, status, joined_at)
          VALUES ($1, $2, $3, 'ACTIVE', now())
-         ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = 'ACTIVE'`,
+         ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = 'ACTIVE', joined_at = now()`,
         [invitation.organization_id, userId, invitation.role],
       );
+
+      // Auto-assign member to all existing projects in this organization
+      const orgProjects = await manager.query(
+        `SELECT id, key, name, slug, description FROM projects WHERE organization_id = $1`,
+        [invitation.organization_id],
+      );
+      for (const p of orgProjects) {
+        await manager.query(
+          `INSERT INTO project_members (project_id, user_id, role, joined_at)
+           VALUES ($1, $2, $3, now())
+           ON CONFLICT (project_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+          [p.id, userId, invitation.role === 'ADMIN' ? 'ADMIN' : 'DEVELOPER'],
+        );
+      }
 
       // Mark invitation accepted if it is a 1-to-1 email invite
       if (!invitation.email.endsWith('@invite.internal')) {
@@ -205,6 +219,7 @@ export class OrgService {
         success: true,
         organization: orgRes[0],
         role: invitation.role,
+        projects: orgProjects,
       };
     });
   }

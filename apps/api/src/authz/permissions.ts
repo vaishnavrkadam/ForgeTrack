@@ -36,7 +36,23 @@ export const ORG_ROLE_PERMISSIONS: Record<string, string[]> = {
     OrgPermission.INVITE,
     OrgPermission.PROJECT_CREATE,
   ],
-  MEMBER: [OrgPermission.READ],
+  MAINTAINER: [
+    OrgPermission.READ,
+    OrgPermission.UPDATE,
+    OrgPermission.INVITE,
+    OrgPermission.PROJECT_CREATE,
+  ],
+  DEVELOPER: [
+    OrgPermission.READ,
+    OrgPermission.INVITE,
+    OrgPermission.PROJECT_CREATE,
+  ],
+  MEMBER: [
+    OrgPermission.READ,
+    OrgPermission.INVITE,
+    OrgPermission.PROJECT_CREATE,
+  ],
+  VIEWER: [OrgPermission.READ],
   GUEST: [OrgPermission.READ],
 };
 

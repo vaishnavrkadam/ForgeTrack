@@ -12,7 +12,7 @@ function JoinContent() {
   const router = useRouter();
   const token = searchParams.get('token');
 
-  const { currentUser, setIsAuthModalOpen, reloadProjects, setViewMode } = useStore();
+  const { currentUser, setIsAuthModalOpen, setCurrentOrg, setSelectedProject, setViewMode } = useStore();
   const { playSuccessSound, playClickSound } = useSound();
 
   const [preview, setPreview] = useState<any | null>(null);
@@ -55,14 +55,28 @@ function JoinContent() {
     setErrorMsg(null);
 
     try {
-      await api.post('/invitations/accept', { token });
+      const acceptRes = await api.post<any>('/invitations/accept', { token });
       try {
         localStorage.removeItem('pending_join_token');
       } catch {
         // Ignored
       }
       playSuccessSound();
-      await reloadProjects();
+
+      if (acceptRes && acceptRes.organization) {
+        const joinedOrg = {
+          id: acceptRes.organization.id,
+          slug: acceptRes.organization.slug,
+          name: acceptRes.organization.name,
+          role: acceptRes.role || 'DEVELOPER',
+        };
+        setCurrentOrg(joinedOrg);
+        const projs = await api.get<any[]>(`/organizations/${joinedOrg.id}/projects`);
+        if (Array.isArray(projs) && projs.length > 0) {
+          setSelectedProject(projs[0]);
+        }
+      }
+
       setViewMode('app');
       router.push('/');
     } catch (err: any) {

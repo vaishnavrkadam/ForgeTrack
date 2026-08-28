@@ -25,6 +25,7 @@ const INITIAL_CI_RUNS: CiRunData[] = [];
 interface StoreContextType {
   currentUser: UserData | null;
   currentOrg: OrganizationData | null;
+  setCurrentOrg: (org: OrganizationData | null) => void;
   isLoadingUser: boolean;
   login: (provider?: 'github' | 'google' | 'email', name?: string, email?: string, avatarUrl?: string) => Promise<void>;
   loginDev: (provider?: 'github' | 'google' | 'email', name?: string, email?: string, avatarUrl?: string) => Promise<void>;
@@ -126,10 +127,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const acceptRes = await api.post<any>('/invitations/accept', { token: pendingToken });
             localStorage.removeItem('pending_join_token');
             if (acceptRes && acceptRes.organization) {
-              setCurrentOrg(acceptRes.organization);
+              const joinedOrg = {
+                id: acceptRes.organization.id,
+                slug: acceptRes.organization.slug,
+                name: acceptRes.organization.name,
+                role: acceptRes.role || 'DEVELOPER',
+              };
+              setCurrentOrg(joinedOrg);
+              const projs = await fetchProjects(joinedOrg.id);
+              setProjects(projs || []);
+              if (projs && projs.length > 0) {
+                setSelectedProject(projs[0]);
+              }
             }
           }
-        } catch {
+        } catch (invErr) {
+          console.warn('Auto accept error:', invErr);
           try {
             localStorage.removeItem('pending_join_token');
           } catch {
@@ -343,6 +356,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       value={{
         currentUser,
         currentOrg,
+        setCurrentOrg,
         isLoadingUser,
         login: loginDev,
         loginDev,

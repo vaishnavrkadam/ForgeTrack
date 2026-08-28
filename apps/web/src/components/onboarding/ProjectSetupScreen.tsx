@@ -8,7 +8,7 @@ import { createProject, importProjectFromGitHub } from '../../lib/api/issues';
 import { api } from '../../lib/api';
 
 export const ProjectSetupScreen: React.FC = () => {
-  const { currentOrg, reloadProjects, setSelectedProject } = useStore();
+  const { currentOrg, setCurrentOrg, reloadProjects, setSelectedProject } = useStore();
   const { playSuccessSound, playClickSound } = useSound();
 
   const [activeTab, setActiveTab] = useState<'create' | 'github' | 'join'>('create');
@@ -22,8 +22,8 @@ export const ProjectSetupScreen: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // GitHub Import form state
-  const [repoOwner, setRepoOwner] = useState('vaishnavrkadam');
-  const [repoName, setRepoName] = useState('ForgeTrack');
+  const [repoOwner, setRepoOwner] = useState('');
+  const [repoName, setRepoName] = useState('');
   const [customKey, setCustomKey] = useState('');
 
   // Join form state
@@ -98,12 +98,33 @@ export const ProjectSetupScreen: React.FC = () => {
     setIsSubmitting(true);
     setErrorMsg(null);
 
+    let cleanToken = inviteToken.trim();
+    if (cleanToken.includes('token=')) {
+      const match = cleanToken.match(/token=([a-f0-9]+)/i);
+      if (match) cleanToken = match[1];
+    }
+
     try {
-      await api.post(`/organizations/${currentOrg?.id || 'default'}/invitations/accept`, {
-        token: inviteToken.trim(),
+      const acceptRes = await api.post<any>('/invitations/accept', {
+        token: cleanToken,
       });
 
       playSuccessSound();
+
+      if (acceptRes && acceptRes.organization) {
+        const joinedOrg = {
+          id: acceptRes.organization.id,
+          slug: acceptRes.organization.slug,
+          name: acceptRes.organization.name,
+          role: acceptRes.role || 'DEVELOPER',
+        };
+        setCurrentOrg(joinedOrg);
+        const projs = await api.get<any[]>(`/organizations/${joinedOrg.id}/projects`);
+        if (Array.isArray(projs) && projs.length > 0) {
+          setSelectedProject(projs[0]);
+        }
+      }
+
       await reloadProjects();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to accept invitation.');
@@ -252,7 +273,7 @@ export const ProjectSetupScreen: React.FC = () => {
               <input
                 type="text"
                 required
-                placeholder="e.g. vaishnavrkadam"
+                placeholder="e.g. facebook"
                 value={repoOwner}
                 onChange={e => setRepoOwner(e.target.value)}
                 className="w-full bg-[#f5f0e6] dark:bg-[#262420] px-3.5 py-2 rounded-xl border border-[#e7e2d6] dark:border-[#33302a] text-xs text-[#1c1917] dark:text-white focus:outline-none"
@@ -264,7 +285,7 @@ export const ProjectSetupScreen: React.FC = () => {
               <input
                 type="text"
                 required
-                placeholder="e.g. ForgeTrack"
+                placeholder="e.g. react"
                 value={repoName}
                 onChange={e => setRepoName(e.target.value)}
                 className="w-full bg-[#f5f0e6] dark:bg-[#262420] px-3.5 py-2 rounded-xl border border-[#e7e2d6] dark:border-[#33302a] text-xs text-[#1c1917] dark:text-white focus:outline-none"
