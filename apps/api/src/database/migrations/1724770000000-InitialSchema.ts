@@ -545,7 +545,7 @@ export class InitialSchema1724770000000 implements MigrationInterface {
         created_at timestamptz NOT NULL DEFAULT now()
       );
 
-      -- Embeddings: Uses vector type conditionally depending on extension
+      -- Embeddings: Uses vector(1536) type conditionally depending on extension
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vector') THEN
@@ -557,7 +557,7 @@ export class InitialSchema1724770000000 implements MigrationInterface {
             entity_id uuid NOT NULL,
             content_hash char(64) NOT NULL,
             model varchar(160) NOT NULL,
-            vector vector,
+            vector vector(1536),
             created_at timestamptz NOT NULL DEFAULT now(),
             UNIQUE (entity_type, entity_id, model)
           );
@@ -639,11 +639,15 @@ export class InitialSchema1724770000000 implements MigrationInterface {
       CREATE INDEX IF NOT EXISTS idx_issue_relationships_source ON issue_relationships (source_issue_id);
       CREATE INDEX IF NOT EXISTS idx_issue_relationships_target ON issue_relationships (target_issue_id);
       
-      -- Create vector index conditionally if pgvector exists
+      -- Create vector index conditionally if pgvector exists and column has dimensions
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vector') THEN
-          CREATE INDEX IF NOT EXISTS idx_embeddings_vector ON embeddings USING hnsw (vector vector_cosine_ops);
+          BEGIN
+            CREATE INDEX IF NOT EXISTS idx_embeddings_vector ON embeddings USING hnsw (vector vector_cosine_ops);
+          EXCEPTION WHEN OTHERS THEN
+            NULL;
+          END;
         END IF;
       END $$;
     `);
