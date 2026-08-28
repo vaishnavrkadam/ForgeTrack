@@ -18,40 +18,9 @@ import {
   updateIssue as apiUpdateIssue,
 } from './api/issues';
 
-const INITIAL_RELEASES: ReleaseData[] = [
-  {
-    id: 'rel-1',
-    name: 'v1.0.0 — Production Release',
-    status: 'ACTIVE',
-    releaseDate: '2026-09-01',
-    totalIssues: 0,
-    doneIssues: 0,
-    blockingDefects: 0,
-    ciPassRate: 100,
-    health: 'HEALTHY',
-  },
-];
-
-const INITIAL_WEBHOOKS: WebhookData[] = [
-  {
-    id: 'wh-1',
-    url: 'https://api.github.com/repos/vaishnavrkadam/ForgeTrack/webhooks',
-    events: ['issue.created', 'issue.updated', 'issue.transitioned'],
-    isEnabled: true,
-    createdAt: new Date().toISOString(),
-  },
-];
-
-const INITIAL_CI_RUNS: CiRunData[] = [
-  {
-    id: 'ci-1',
-    commitSha: 'main-latest',
-    workflowName: 'Build & Unit Tests',
-    status: 'SUCCESS',
-    url: 'https://github.com/vaishnavrkadam/ForgeTrack/actions',
-    startedAt: 'Just now',
-  },
-];
+const INITIAL_RELEASES: ReleaseData[] = [];
+const INITIAL_WEBHOOKS: WebhookData[] = [];
+const INITIAL_CI_RUNS: CiRunData[] = [];
 
 interface StoreContextType {
   currentUser: UserData | null;
@@ -149,6 +118,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setCurrentUser(u);
         setCurrentOrg(data.organization || null);
         setViewMode('app');
+
+        // Check if there is a pending workspace invitation token
+        try {
+          const pendingToken = typeof window !== 'undefined' ? localStorage.getItem('pending_join_token') : null;
+          if (pendingToken) {
+            const acceptRes = await api.post<any>('/invitations/accept', { token: pendingToken });
+            localStorage.removeItem('pending_join_token');
+            if (acceptRes && acceptRes.organization) {
+              setCurrentOrg(acceptRes.organization);
+            }
+          }
+        } catch {
+          try {
+            localStorage.removeItem('pending_join_token');
+          } catch {
+            // Ignored
+          }
+        }
       }
     } catch {
       // Not authenticated yet

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { useStore } from '../../lib/store';
@@ -7,12 +7,14 @@ import { BugMascot } from '../mascot/BugMascot';
 import { PlusIcon } from '../ui/Icons';
 
 export const IntegrationsView: React.FC = () => {
-  const { webhooks } = useStore();
+  const { webhooks, currentUser, selectedProject } = useStore();
   const { playSuccessSound } = useSound();
 
   const [webhookList, setWebhookList] = useState(webhooks);
   const [newUrl, setNewUrl] = useState('');
   const [testResult, setTestResult] = useState<string | null>(null);
+
+  const isGitHubConnected = currentUser?.oauthProvider === 'github' || !!selectedProject?.key;
 
   const handleAddWebhook = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +23,7 @@ export const IntegrationsView: React.FC = () => {
     const newHook = {
       id: `wh-${Date.now()}`,
       url: newUrl.trim(),
-      events: ['issue.created', 'issue.updated'],
+      events: ['issue.created', 'issue.updated', 'issue.transitioned'],
       isEnabled: true,
       createdAt: new Date().toISOString(),
     };
@@ -54,12 +56,22 @@ export const IntegrationsView: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-bold text-sm text-[#1c1917] dark:text-white">GitHub Integration</h3>
-                <span className="text-[11px] text-[#10b981] font-semibold">● Connected (HMAC Validated)</span>
+                {isGitHubConnected ? (
+                  <span className="text-[11px] text-[#10b981] font-semibold">● Connected (OAuth Active)</span>
+                ) : (
+                  <span className="text-[11px] text-[#78716c] font-semibold">○ Not Linked</span>
+                )}
               </div>
             </div>
-            <button className="px-3 py-1 bg-[#f5f0e6] dark:bg-[#262420] text-xs font-semibold rounded-xl text-[#1c1917] dark:text-white">
-              Sync Repos
-            </button>
+            {isGitHubConnected ? (
+              <span className="text-[11px] font-semibold text-[#10b981] bg-[#10b981]/15 px-2.5 py-1 rounded-lg">
+                Active
+              </span>
+            ) : (
+              <button className="px-3 py-1 bg-[#f5f0e6] dark:bg-[#262420] text-xs font-semibold rounded-xl text-[#1c1917] dark:text-white hover:bg-[#e7e2d6]">
+                Connect
+              </button>
+            )}
           </div>
           <p className="text-xs text-[#78716c]">
             Automated PR & commit links enabled. Regex matches: <code className="font-mono text-[#3b82f6]">/([A-Z][A-Z0-9]+)-(\d+)/g</code>
@@ -74,15 +86,15 @@ export const IntegrationsView: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-bold text-sm text-[#1c1917] dark:text-white">GitLab Integration</h3>
-                <span className="text-[11px] text-[#10b981] font-semibold">● Connected</span>
+                <span className="text-[11px] text-[#78716c] font-semibold">○ Not Connected</span>
               </div>
             </div>
-            <button className="px-3 py-1 bg-[#f5f0e6] dark:bg-[#262420] text-xs font-semibold rounded-xl text-[#1c1917] dark:text-white">
+            <button className="px-3 py-1 bg-[#f5f0e6] dark:bg-[#262420] text-xs font-semibold rounded-xl text-[#1c1917] dark:text-white hover:bg-[#e7e2d6]">
               Configure
             </button>
           </div>
           <p className="text-xs text-[#78716c]">
-            Merge requests and pipeline webhook triggers active. Secret token verified.
+            Merge requests and pipeline webhook triggers ready for setup.
           </p>
         </div>
       </div>
@@ -109,7 +121,7 @@ export const IntegrationsView: React.FC = () => {
           />
           <button
             type="submit"
-            className="px-4 py-2 bg-[#ccee22] hover:bg-[#b8dd11] text-[#1c1917] font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+            className="px-4 py-2 bg-[#ccee22] hover:bg-[#b8dd11] text-[#1c1917] font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <PlusIcon className="w-3.5 h-3.5" />
             <span>Add Webhook</span>
@@ -123,36 +135,43 @@ export const IntegrationsView: React.FC = () => {
         )}
 
         {/* Webhooks Table */}
-        <div className="space-y-2.5">
-          {webhookList.map(hook => (
-            <div
-              key={hook.id}
-              className="p-3 bg-[#fbf9f5] dark:bg-[#121110] border border-[#e7e2d6] dark:border-[#33302a] rounded-2xl flex items-center justify-between text-xs"
-            >
-              <div className="space-y-1">
-                <div className="font-mono font-bold text-[#1c1917] dark:text-white truncate max-w-md">
-                  {hook.url}
+        {webhookList.length === 0 ? (
+          <div className="p-6 bg-[#fbf9f5] dark:bg-[#121110] border border-[#e7e2d6] dark:border-[#33302a] rounded-2xl text-center text-xs text-[#78716c] space-y-1">
+            <p className="font-semibold text-[#1c1917] dark:text-white">No outbound webhooks configured yet.</p>
+            <p className="text-[11px]">Enter your destination endpoint above to receive automated issue and release payloads.</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {webhookList.map(hook => (
+              <div
+                key={hook.id}
+                className="p-3 bg-[#fbf9f5] dark:bg-[#121110] border border-[#e7e2d6] dark:border-[#33302a] rounded-2xl flex items-center justify-between text-xs"
+              >
+                <div className="space-y-1">
+                  <div className="font-mono font-bold text-[#1c1917] dark:text-white truncate max-w-md">
+                    {hook.url}
+                  </div>
+                  <div className="flex gap-1.5">
+                    {hook.events.map((ev, i) => (
+                      <span key={i} className="text-[10px] px-2 py-0.2 bg-white dark:bg-[#262420] text-[#78716c] rounded-md border border-[#e7e2d6] dark:border-[#33302a]">
+                        {ev}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex gap-1.5">
-                  {hook.events.map((ev, i) => (
-                    <span key={i} className="text-[10px] px-2 py-0.2 bg-white dark:bg-[#262420] text-[#78716c] rounded-md border border-[#e7e2d6] dark:border-[#33302a]">
-                      {ev}
-                    </span>
-                  ))}
-                </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleTestPing(hook.url)}
-                  className="px-3 py-1 bg-white dark:bg-[#1c1b18] hover:bg-[#f5f0e6] text-xs font-semibold rounded-lg border border-[#e7e2d6] dark:border-[#33302a] text-[#1c1917] dark:text-white transition-colors"
-                >
-                  Send Ping
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleTestPing(hook.url)}
+                    className="px-3 py-1 bg-white dark:bg-[#1c1b18] hover:bg-[#f5f0e6] text-xs font-semibold rounded-lg border border-[#e7e2d6] dark:border-[#33302a] text-[#1c1917] dark:text-white transition-colors cursor-pointer"
+                  >
+                    Send Ping
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

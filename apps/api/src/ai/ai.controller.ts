@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { CurrentUser, CurrentOrg } from '../auth/decorators/auth.decorator';
 import { RequirePermission } from '../authz/decorators/permissions.decorator';
@@ -16,6 +16,17 @@ import {
 @Controller()
 export class AiController {
   constructor(private readonly aiService: AiService) {}
+
+  @Get('search/semantic')
+  @RequirePermission(OrgPermission.READ)
+  async getSemanticSearch(
+    @CurrentOrg() org: any,
+    @Query('q') query: string,
+    @Query('limit') limit?: string,
+  ): Promise<ApiSuccessEnvelope<any[]>> {
+    const data = await this.aiService.semanticSearch(org.id, query || '', limit ? parseInt(limit, 10) : 20);
+    return { data };
+  }
 
   @Post('search/semantic')
   @RequirePermission(OrgPermission.READ)
@@ -36,6 +47,49 @@ export class AiController {
     @Body() dto: SearchIssueDto,
   ): Promise<ApiSuccessEnvelope<any[]>> {
     const data = await this.aiService.hybridSearch(org.id, dto);
+    return { data };
+  }
+
+  /**
+   * Interactive AI Workbench endpoints
+   */
+  @Post('ai/duplicates')
+  async testDuplicateCheck(
+    @Body('projectId') projectId: string,
+    @Body('title') title: string,
+    @Body('description') description?: string,
+  ): Promise<ApiSuccessEnvelope<any[]>> {
+    if (!projectId || !title) {
+      return { data: [] };
+    }
+    const data = await this.aiService.testDuplicateCheck(projectId, title, description || '');
+    return { data };
+  }
+
+  @Post('ai/triage')
+  async testTriage(
+    @Body('title') title: string,
+    @Body('description') description?: string,
+  ): Promise<ApiSuccessEnvelope<any>> {
+    const data = this.aiService.testTriage(title || '', description || '');
+    return { data };
+  }
+
+  @Post('ai/quality-check')
+  async testQualityCheck(
+    @Body('title') title: string,
+    @Body('description') description?: string,
+  ): Promise<ApiSuccessEnvelope<any>> {
+    const data = this.aiService.testQualityCheck(title || '', description || '');
+    return { data };
+  }
+
+  @Get('projects/:projectId/ai/suggestions')
+  @RequirePermission(ProjectPermission.ISSUE_READ)
+  async getProjectSuggestions(
+    @Param('projectId') projectId: string,
+  ): Promise<ApiSuccessEnvelope<any[]>> {
+    const data = await this.aiService.getProjectSuggestions(projectId);
     return { data };
   }
 

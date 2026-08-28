@@ -1,4 +1,4 @@
-﻿import { Injectable, Inject, forwardRef, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, NotFoundException, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import * as crypto from 'crypto';
 import { EmbeddingService } from './embedding.service';
@@ -647,7 +647,35 @@ export class AiService {
   }
 
   /**
-   * List suggestions for an issue
+   * List suggestions for an entire project (for AI Studio & Workbench)
+   */
+  async getProjectSuggestions(projectId: string): Promise<any[]> {
+    const rows = await this.dataSource.query(
+      `SELECT s.id, s.organization_id as "organizationId", s.project_id as "projectId",
+              s.issue_id as "issueId", s.type, s.model, s.result, s.confidence, s.status,
+              s.created_at as "createdAt", i.title as "issueTitle", i.number as "issueNumber",
+              p.key as "projectKey"
+       FROM ai_suggestions s
+       LEFT JOIN issues i ON i.id = s.issue_id
+       LEFT JOIN projects p ON p.id = s.project_id
+       WHERE s.project_id = $1 AND s.status = 'PENDING'
+       ORDER BY s.created_at DESC LIMIT 20`,
+      [projectId],
+    );
+
+    return rows.map((r: any) => ({
+      id: r.id,
+      type: r.type === 'DUPLICATE' ? 'Duplicate Warning' : 'Triage Recommendation',
+      title: r.result?.topCandidate?.title
+        ? `Potential duplicate with ${r.result.topCandidate.issueKey}: "${r.result.topCandidate.title}"`
+        : `AI Recommendation for ${r.projectKey || 'ISSUE'}-${r.issueNumber || ''}: ${r.issueTitle || 'Defect'}`,
+      confidence: Number(r.confidence) || 0.85,
+      status: r.status,
+    }));
+  }
+
+  /**
+   * List suggestions for a specific issue
    */
   async getIssueSuggestions(issueId: string): Promise<AiSuggestionRecordDto[]> {
     return this.dataSource.query(
@@ -659,5 +687,136 @@ export class AiService {
        ORDER BY created_at DESC`,
       [issueId],
     );
+  }
+
+  /**
+   * Interactive duplicate scan on arbitrary text against existing project issues
+   */
+  async testDuplicateCheck(projectId: string, title: string, description: string): Promise<any[]> {
+    const text = `Title: ${title}\nDescription: ${description || ''}`;
+    const queryVector = await this.embeddingService.generateEmbedding(text);
+
+    const rows = await this.dataSource.query(
+      `SELECT e.entity_id as "issueId", e.vector, i.title, i.number, p.key as "projectKey",
+              i.description
+       FROM embeddings e
+       JOIN issues i ON i.id = e.entity_id
+       JOIN projects p ON p.id = i.project_id
+       WHERE i.project_id = $1 AND e.entity_type = 'ISSUE'`,
+      [projectId],
+    );
+
+    const duplicates: any[] = [];
+    for (const row of rows) {
+      const rowValStr = String(row.vector).replace(/[{}[\]]/g, '');
+      const vec = rowValStr.split(',').map(Number);
+      if (vec.length === queryVector.length) {
+        const similarity = this.embeddingService.cosineSimilarity(queryVector, vec);
+        if (similarity >= 0.65) {
+          const reason = this.generateDuplicateReason(title, row.title, similarity);
+          duplicates.push({
+            issueId: row.issueId,
+            issueKey: `${row.projectKey}-${row.number}`,
+            title: row.title,
+            similarity: parseFloat(similarity.toFixed(4)),
+            reason,
+          });
+        }
+      }
+    }
+
+    duplicates.sort((a, b) => b.similarity - a.similarity);
+    return duplicates;
+  }
+
+  /**
+   * Interactive quality audit on arbitrary text
+   */
+  testQualityCheck(title: string, description: string): any {
+    const findings: string[] = [];
+    let score = 100;
+
+    const trimmedTitle = (title || '').trim();
+    const trimmedDesc = (description || '').trim();
+
+    if (trimmedTitle.length < 10) {
+      findings.push('⚠️ Title is short (< 10 chars). Add more specific defect details.');
+      score -= 20;
+    } else {
+      findings.push('✅ Title length is descriptive.');
+    }
+
+    if (trimmedDesc.length < 30) {
+      findings.push('⚠️ Description is too brief. Please explain context and steps.');
+      score -= 25;
+    } else {
+      findings.push('✅ Detailed description provided.');
+    }
+
+    if (trimmedDesc.toLowerCase().includes('step') || trimmedDesc.toLowerCase().includes('reproduce') || trimmedDesc.includes('1.') || trimmedDesc.includes('1)')) {
+      findings.push('✅ Step-by-step reproduction sequence detected.');
+    } else {
+      findings.push('⚠️ Missing step-by-step reproduction instructions.');
+      score -= 20;
+    }
+
+    if (trimmedDesc.toLowerCase().includes('expect') || trimmedDesc.toLowerCase().includes('actual')) {
+      findings.push('✅ Expected vs actual behavior clearly stated.');
+    } else {
+      findings.push('⚠️ Consider clarifying expected vs actual behavior.');
+      score -= 15;
+    }
+
+    if (score < 0) score = 0;
+
+    return {
+      score,
+      findings,
+    };
+  }
+
+  /**
+   * Interactive triage on arbitrary text
+   */
+  testTriage(title: string, description: string): any {
+    const content = `${title} ${description}`.toLowerCase();
+    let type = 'BUG';
+    let priority = 'MEDIUM';
+    let severity = 'MAJOR';
+    let component = 'Core Engine';
+    let confidence = 0.85;
+
+    if (content.includes('feature') || content.includes('enhancement') || content.includes('support')) {
+      type = 'FEATURE';
+      priority = 'LOW';
+      severity = 'MINOR';
+    } else if (content.includes('task') || content.includes('refactor') || content.includes('clean')) {
+      type = 'TASK';
+      priority = 'MEDIUM';
+      severity = 'TRIVIAL';
+    }
+
+    if (content.includes('crash') || content.includes('security') || content.includes('vulnerability') || content.includes('outage')) {
+      priority = 'URGENT';
+      severity = 'BLOCKER';
+      confidence = 0.96;
+    } else if (content.includes('timeout') || content.includes('slow') || content.includes('auth') || content.includes('login')) {
+      priority = 'HIGH';
+      severity = 'CRITICAL';
+      component = 'Authentication / Security';
+      confidence = 0.91;
+    } else if (content.includes('ui') || content.includes('button') || content.includes('css') || content.includes('modal')) {
+      component = 'Frontend / UI';
+    } else if (content.includes('db') || content.includes('sql') || content.includes('database')) {
+      component = 'Database';
+    }
+
+    return {
+      type,
+      priority,
+      severity,
+      component,
+      confidence,
+    };
   }
 }

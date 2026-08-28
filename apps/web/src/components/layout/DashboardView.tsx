@@ -157,25 +157,48 @@ export const DashboardView: React.FC = () => {
 
           {/* Active Release Milestone Card */}
           <div className="p-4 bg-white dark:bg-[#1c1b18] border border-[#e7e2d6] dark:border-[#33302a] rounded-3xl space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-[#1c1917] dark:text-white">{activeRelease.name}</span>
-              <span className="font-bold text-[10px] px-2 py-0.5 rounded-full bg-[#10b981]/20 text-[#10b981]">
-                {activeRelease.health}
-              </span>
-            </div>
+            {activeRelease ? (
+              <>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[#1c1917] dark:text-white">{activeRelease.name}</span>
+                  <span className="font-bold text-[10px] px-2 py-0.5 rounded-full bg-[#10b981]/20 text-[#10b981]">
+                    {activeRelease.health}
+                  </span>
+                </div>
 
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-[#78716c]">
-                <span>Progress</span>
-                <span className="font-bold">{projectIssues.filter(i => i.statusCategory === 'DONE').length} / {projectIssues.length} resolved</span>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-[#78716c]">
+                    <span>Progress</span>
+                    <span className="font-bold">{projectIssues.filter(i => i.statusCategory === 'DONE').length} / {projectIssues.length} resolved</span>
+                  </div>
+                  <div className="w-full h-2 bg-[#f5f0e6] dark:bg-[#262420] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#ccee22]"
+                      style={{ width: `${projectIssues.length > 0 ? (projectIssues.filter(i => i.statusCategory === 'DONE').length / projectIssues.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[#1c1917] dark:text-white">Milestone Burndown</span>
+                  <span className="text-[10px] text-[#78716c]">v1.0.0</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-[#78716c]">
+                    <span>Sprint Status</span>
+                    <span className="font-bold">{projectIssues.filter(i => i.statusCategory === 'DONE').length} / {projectIssues.length} resolved</span>
+                  </div>
+                  <div className="w-full h-2 bg-[#f5f0e6] dark:bg-[#262420] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#ccee22]"
+                      style={{ width: `${projectIssues.length > 0 ? (projectIssues.filter(i => i.statusCategory === 'DONE').length / projectIssues.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="w-full h-2 bg-[#f5f0e6] dark:bg-[#262420] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#ccee22]"
-                  style={{ width: `${projectIssues.length > 0 ? (projectIssues.filter(i => i.statusCategory === 'DONE').length / projectIssues.length) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
