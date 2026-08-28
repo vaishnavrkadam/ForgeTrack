@@ -49,8 +49,7 @@ export class OAuthService {
   getGitHubAuthUrl(state?: string): string {
     const clientId = process.env.GITHUB_CLIENT_ID;
     if (!clientId) {
-      // Dev fallback redirect URL if GitHub App is not yet configured in .env
-      return `${this.getRedirectBaseUrl()}/api/v1/auth/github/callback?code=mock-gh-code&state=${state || ''}`;
+      throw new BadRequestException('GitHub OAuth is not configured on the server. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET.');
     }
     const redirectUri = encodeURIComponent(`${this.getRedirectBaseUrl()}/api/v1/auth/github/callback`);
     const scope = encodeURIComponent('read:user user:email repo');
@@ -62,17 +61,8 @@ export class OAuthService {
     const clientId = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
 
-    // Graceful fallback for local development if client ID/secret are unconfigured or mock code passed
-    if (!clientId || !clientSecret || code === 'mock-gh-code') {
-      this.logger.log('Simulating GitHub OAuth in development mode');
-      return {
-        provider: 'github',
-        providerId: 'gh-dev-user-12345',
-        email: 'developer@github.com',
-        displayName: 'GitHub Developer',
-        avatarUrl: 'https://avatars.githubusercontent.com/u/9919?v=4',
-        accessToken: 'gho_mock_token_dev',
-      };
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException('GitHub OAuth credentials are not configured on the server.');
     }
 
     // 1. Exchange code for access token
@@ -148,8 +138,7 @@ export class OAuthService {
   getGoogleAuthUrl(state?: string): string {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
-      // Dev fallback URL
-      return `${this.getRedirectBaseUrl()}/api/v1/auth/google/callback?code=mock-google-code&state=${state || ''}`;
+      throw new BadRequestException('Google OAuth is not configured on the server. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
     }
     const redirectUri = encodeURIComponent(`${this.getRedirectBaseUrl()}/api/v1/auth/google/callback`);
     const scope = encodeURIComponent('openid email profile');
@@ -161,16 +150,8 @@ export class OAuthService {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
-    if (!clientId || !clientSecret || code === 'mock-google-code') {
-      this.logger.log('Simulating Google OAuth in development mode');
-      return {
-        provider: 'google',
-        providerId: 'google-dev-user-98765',
-        email: 'engineer@gmail.com',
-        displayName: 'Google Engineer',
-        avatarUrl: 'https://lh3.googleusercontent.com/a/default-user=s96-c',
-        accessToken: 'ya29.mock_token_dev',
-      };
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException('Google OAuth credentials are not configured on the server.');
     }
 
     const redirectUri = `${this.getRedirectBaseUrl()}/api/v1/auth/google/callback`;

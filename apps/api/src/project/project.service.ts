@@ -99,13 +99,13 @@ export class ProjectService {
 
       // 6. Seed Default Statuses
       const statuses = [
-        { name: 'Open', code: 'OPEN', category: 'TODO', rank: 1, terminal: false },
-        { name: 'Triaged', code: 'TRIAGED', category: 'TODO', rank: 2, terminal: false },
-        { name: 'In Progress', code: 'IN_PROGRESS', category: 'ACTIVE', rank: 3, terminal: false },
-        { name: 'In Review', code: 'IN_REVIEW', category: 'ACTIVE', rank: 4, terminal: false },
-        { name: 'Resolved', code: 'RESOLVED', category: 'DONE', rank: 5, terminal: false },
-        { name: 'Verified', code: 'VERIFIED', category: 'DONE', rank: 6, terminal: false },
-        { name: 'Closed', code: 'CLOSED', category: 'DONE', rank: 7, is_terminal: true },
+        { name: 'Open', code: 'OPEN', category: 'TODO', rank: 1, isTerminal: false },
+        { name: 'Triaged', code: 'TRIAGED', category: 'TODO', rank: 2, isTerminal: false },
+        { name: 'In Progress', code: 'IN_PROGRESS', category: 'ACTIVE', rank: 3, isTerminal: false },
+        { name: 'In Review', code: 'IN_REVIEW', category: 'ACTIVE', rank: 4, isTerminal: false },
+        { name: 'Resolved', code: 'RESOLVED', category: 'DONE', rank: 5, isTerminal: false },
+        { name: 'Verified', code: 'VERIFIED', category: 'DONE', rank: 6, isTerminal: false },
+        { name: 'Closed', code: 'CLOSED', category: 'DONE', rank: 7, isTerminal: true },
       ];
       const statusMap: Record<string, string> = {};
       for (const st of statuses) {
@@ -113,7 +113,7 @@ export class ProjectService {
           `INSERT INTO statuses (project_id, name, code, category, rank, is_terminal)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id, code`,
-          [project.id, st.name, st.code, st.category, st.rank, st.terminal],
+          [project.id, st.name, st.code, st.category, st.rank, st.isTerminal],
         );
         statusMap[res[0].code] = res[0].id;
       }

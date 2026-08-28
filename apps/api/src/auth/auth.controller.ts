@@ -127,49 +127,6 @@ export class AuthController {
     res.redirect(`${frontendUrl}/auth/callback?sid=${token}`);
   }
 
-  /**
-   * Dev Login Helper (instant authentication for development / pair testing)
-   */
-  @Public()
-  @Post('dev-login')
-  async devLogin(
-    @Body('provider') provider: 'github' | 'google' | 'email',
-    @Body('displayName') displayName: string,
-    @Body('email') email: string,
-    @Body('avatarUrl') avatarUrl: string,
-    @Ip() ipAddress: string,
-    @Headers('user-agent') userAgent: string,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<ApiSuccessEnvelope<AuthContext>> {
-    const chosenProvider = provider || 'github';
-    const chosenName = displayName || (chosenProvider === 'github' ? 'GitHub Developer' : 'Google Engineer');
-    const chosenEmail = email || (chosenProvider === 'github' ? 'developer@github.com' : 'engineer@gmail.com');
-    const chosenAvatar = avatarUrl || (chosenProvider === 'github'
-      ? 'https://avatars.githubusercontent.com/u/9919?v=4'
-      : 'https://lh3.googleusercontent.com/a/default-user=s96-c');
-
-    const { token, context } = await this.oauthService.upsertOAuthUser(
-      {
-        provider: chosenProvider === 'email' ? 'github' : chosenProvider,
-        providerId: `dev-${Date.now()}`,
-        email: chosenEmail,
-        displayName: chosenName,
-        avatarUrl: chosenAvatar,
-      },
-      ipAddress,
-      userAgent,
-    );
-
-    response.cookie('sid', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 7,
-    });
-
-    return { data: context };
-  }
-
   @Post('logout')
   async logout(
     @Req() request: Request,

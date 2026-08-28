@@ -5,9 +5,10 @@ import { useStore } from '../../lib/store';
 import { useSound } from '../sound/SoundProvider';
 import { BugMascot } from '../mascot/BugMascot';
 import { SparklesIcon } from '../ui/Icons';
+import { normalizeApiUrl } from '../../lib/api';
 
 export const LandingPage: React.FC = () => {
-  const { login, setIsAuthModalOpen, setViewMode, currentUser } = useStore();
+  const { setIsAuthModalOpen, setViewMode, currentUser } = useStore();
   const { playClickSound } = useSound();
 
   const handleLaunchApp = () => {
@@ -16,6 +17,19 @@ export const LandingPage: React.FC = () => {
       setViewMode('app');
     } else {
       setIsAuthModalOpen(true);
+    }
+  };
+
+  const handleOAuthLogin = (provider: 'github' | 'google') => {
+    playClickSound();
+    const apiUrl = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
+    const returnOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const stateParam = returnOrigin ? `?state=${encodeURIComponent(returnOrigin)}` : '';
+
+    if (provider === 'github') {
+      window.location.href = `${apiUrl}/auth/github${stateParam}`;
+    } else {
+      window.location.href = `${apiUrl}/auth/google${stateParam}`;
     }
   };
 
@@ -93,10 +107,7 @@ export const LandingPage: React.FC = () => {
           {/* CTA Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
-              onClick={() => {
-                playClickSound();
-                login('github', 'GitHub Engineer', 'engineer@github.com');
-              }}
+              onClick={() => handleOAuthLogin('github')}
               className="px-5 py-3 bg-[#24292f] hover:bg-[#1b1f23] text-white text-xs font-bold rounded-2xl flex items-center gap-2.5 shadow-sm active:scale-95 transition-transform cursor-pointer"
             >
               <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -106,10 +117,7 @@ export const LandingPage: React.FC = () => {
             </button>
 
             <button
-              onClick={() => {
-                playClickSound();
-                login('google', 'Google Engineer', 'engineer@google.com');
-              }}
+              onClick={() => handleOAuthLogin('google')}
               className="px-5 py-3 bg-white dark:bg-[#1c1b18] hover:bg-[#f5f0e6] dark:hover:bg-[#262420] text-[#1c1917] dark:text-white border border-[#e7e2d6] dark:border-[#33302a] text-xs font-bold rounded-2xl flex items-center gap-2.5 shadow-2xs active:scale-95 transition-transform cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">

@@ -8,7 +8,7 @@ import { BugMascot } from '../mascot/BugMascot';
 import { normalizeApiUrl } from '../../lib/api';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, setIsAuthModalOpen, loginDev, loginEmail } = useStore();
+  const { isAuthModalOpen, setIsAuthModalOpen, loginEmail } = useStore();
   const { playClickSound, playSuccessSound } = useSound();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -47,21 +47,6 @@ export const AuthModal: React.FC = () => {
       playSuccessSound();
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication failed.');
-    } finally {
-      setIsLoading(null);
-    }
-  };
-
-  const handleQuickDevLogin = async (provider: 'github' | 'google') => {
-    playClickSound();
-    setIsLoading(provider);
-    setErrorMsg(null);
-
-    try {
-      await loginDev(provider, name || (provider === 'github' ? 'GitHub Engineer' : 'Google Lead'), email);
-      playSuccessSound();
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Dev login failed.');
     } finally {
       setIsLoading(null);
     }
@@ -198,30 +183,8 @@ export const AuthModal: React.FC = () => {
           </button>
         </form>
 
-        {/* Quick Dev Login for local preview */}
-        <div className="pt-2 border-t border-[#e7e2d6] dark:border-[#33302a] flex items-center justify-between text-[11px]">
-          <span className="text-[#a8a29e]">Quick Dev Auth:</span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickDevLogin('github')}
-              className="text-[#3b82f6] hover:underline font-semibold"
-            >
-              Dev GitHub
-            </button>
-            <span className="text-[#a8a29e]">•</span>
-            <button
-              type="button"
-              onClick={() => handleQuickDevLogin('google')}
-              className="text-[#3b82f6] hover:underline font-semibold"
-            >
-              Dev Google
-            </button>
-          </div>
-        </div>
-
         {/* Footer switch mode */}
-        <div className="text-center pt-1">
+        <div className="text-center pt-2">
           <button
             type="button"
             onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
