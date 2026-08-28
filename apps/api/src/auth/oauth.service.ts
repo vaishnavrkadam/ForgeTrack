@@ -31,7 +31,19 @@ export class OAuthService {
   }
 
   private getRedirectBaseUrl(): string {
-    return process.env.OAUTH_REDIRECT_BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const raw =
+      process.env.OAUTH_REDIRECT_BASE_URL ||
+      process.env.BACKEND_URL ||
+      process.env.RENDER_EXTERNAL_URL ||
+      `http://localhost:${process.env.PORT || 3001}`;
+    
+    let sanitized = raw.trim();
+    sanitized = sanitized.replace(/^https?:\/\/(https?:\/\/)+/i, '$1');
+    sanitized = sanitized.replace(/^https?\/\//i, 'https://');
+    if (!/^https?:\/\//i.test(sanitized)) {
+      sanitized = `https://${sanitized}`;
+    }
+    return sanitized.replace(/\/+$/, '');
   }
 
   getGitHubAuthUrl(state?: string): string {

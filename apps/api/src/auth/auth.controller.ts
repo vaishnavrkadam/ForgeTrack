@@ -59,6 +59,7 @@ export class AuthController {
   @Get('github/callback')
   async githubCallback(
     @Query('code') code: string,
+    @Query('state') state: string,
     @Ip() ipAddress: string,
     @Headers('user-agent') userAgent: string,
     @Res() res: Response,
@@ -78,7 +79,9 @@ export class AuthController {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = (state && state.startsWith('http'))
+      ? state.replace(/\/$/, '')
+      : (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
     res.redirect(`${frontendUrl}/auth/callback?sid=${token}`);
   }
 
@@ -99,6 +102,7 @@ export class AuthController {
   @Get('google/callback')
   async googleCallback(
     @Query('code') code: string,
+    @Query('state') state: string,
     @Ip() ipAddress: string,
     @Headers('user-agent') userAgent: string,
     @Res() res: Response,
@@ -117,7 +121,9 @@ export class AuthController {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = (state && state.startsWith('http'))
+      ? state.replace(/\/$/, '')
+      : (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
     res.redirect(`${frontendUrl}/auth/callback?sid=${token}`);
   }
 

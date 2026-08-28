@@ -5,6 +5,8 @@ import { useStore } from '../../lib/store';
 import { useSound } from '../sound/SoundProvider';
 import { BugMascot } from '../mascot/BugMascot';
 
+import { normalizeApiUrl } from '../../lib/api';
+
 export const AuthModal: React.FC = () => {
   const { isAuthModalOpen, setIsAuthModalOpen, loginDev, loginEmail } = useStore();
   const { playClickSound, playSuccessSound } = useSound();
@@ -23,13 +25,14 @@ export const AuthModal: React.FC = () => {
     setIsLoading(provider);
     setErrorMsg(null);
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const apiUrl = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
+    const returnOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const stateParam = returnOrigin ? `?state=${encodeURIComponent(returnOrigin)}` : '';
 
-    // If client ID is not present, we use dev-login instantly; otherwise redirect to real OAuth endpoint
     if (provider === 'github') {
-      window.location.href = `${apiUrl}/auth/github`;
+      window.location.href = `${apiUrl}/auth/github${stateParam}`;
     } else {
-      window.location.href = `${apiUrl}/auth/google`;
+      window.location.href = `${apiUrl}/auth/google${stateParam}`;
     }
   };
 
