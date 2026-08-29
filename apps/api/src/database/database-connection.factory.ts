@@ -1,4 +1,4 @@
-﻿import * as net from 'net';
+import * as net from 'net';
 import * as crypto from 'crypto';
 import { Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
@@ -31,9 +31,20 @@ export async function isPortReachable(host: string, port: number, timeoutMs = 80
 }
 
 export async function createDatabaseDataSource(options: any): Promise<DataSource> {
-  const host = options.host || 'localhost';
-  const port = options.port || 5432;
-  const isOnline = await isPortReachable(host, port, 600);
+  let host = options.host || 'localhost';
+  let port = options.port || 5432;
+
+  if (options.url) {
+    try {
+      const parsedUrl = new URL(options.url);
+      host = parsedUrl.hostname || host;
+      port = parsedUrl.port ? parseInt(parsedUrl.port, 10) : (parsedUrl.protocol === 'https:' ? 443 : 5432);
+    } catch {
+      // Ignored
+    }
+  }
+
+  const isOnline = await isPortReachable(host, port, 1500);
 
   if (isOnline) {
     logger.log(`Connecting to PostgreSQL on ${host}:${port}...`);
@@ -60,7 +71,7 @@ export async function createDatabaseDataSource(options: any): Promise<DataSource
   // Create every application table in memory
   const tableStatements = [
     `CREATE TABLE IF NOT EXISTS organizations (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       slug varchar(160) UNIQUE NOT NULL,
       name varchar(160) NOT NULL,
       description text,
@@ -70,29 +81,32 @@ export async function createDatabaseDataSource(options: any): Promise<DataSource
       updated_at timestamptz NOT NULL DEFAULT now()
     )`,
     `CREATE TABLE IF NOT EXISTS users (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       email varchar(160) UNIQUE NOT NULL,
       display_name varchar(120) NOT NULL,
       avatar_url text,
       password_hash text,
       email_verified_at timestamptz,
+      oauth_provider varchar(30),
+      oauth_provider_id varchar(255),
       status varchar(30) NOT NULL DEFAULT 'ACTIVE',
       last_login_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )`,
     `CREATE TABLE IF NOT EXISTS organization_members (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id uuid NOT NULL,
       user_id uuid NOT NULL,
       role varchar(40) NOT NULL DEFAULT 'MEMBER',
       status varchar(30) NOT NULL DEFAULT 'ACTIVE',
       joined_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (organization_id, user_id)
     )`,
     `CREATE TABLE IF NOT EXISTS organization_invitations (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id uuid NOT NULL,
       email varchar(160) NOT NULL,
       role varchar(40) NOT NULL DEFAULT 'MEMBER',
@@ -103,7 +117,7 @@ export async function createDatabaseDataSource(options: any): Promise<DataSource
       created_at timestamptz NOT NULL DEFAULT now()
     )`,
     `CREATE TABLE IF NOT EXISTS projects (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id uuid NOT NULL,
       key varchar(20) NOT NULL,
       name varchar(120) NOT NULL,
@@ -115,29 +129,34 @@ export async function createDatabaseDataSource(options: any): Promise<DataSource
       settings jsonb NOT NULL DEFAULT '{}',
       created_by uuid,
       created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (organization_id, key),
+      UNIQUE (organization_id, slug)
     )`,
     `CREATE TABLE IF NOT EXISTS project_members (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       project_id uuid NOT NULL,
       user_id uuid NOT NULL,
       role varchar(40) NOT NULL DEFAULT 'DEVELOPER',
-      created_at timestamptz NOT NULL DEFAULT now()
+      created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (project_id, user_id)
     )`,
     `CREATE TABLE IF NOT EXISTS teams (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id uuid NOT NULL,
       name varchar(120) NOT NULL,
       slug varchar(120) NOT NULL,
       description text,
       created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (organization_id, slug)
     )`,
     `CREATE TABLE IF NOT EXISTS team_members (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       team_id uuid NOT NULL,
       user_id uuid NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now()
+      created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (team_id, user_id)
     )`,
     `CREATE TABLE IF NOT EXISTS project_teams (
       project_id uuid NOT NULL,

@@ -12,7 +12,7 @@ function JoinContent() {
   const router = useRouter();
   const token = searchParams.get('token');
 
-  const { currentUser, setIsAuthModalOpen, setCurrentOrg, setSelectedProject, setViewMode } = useStore();
+  const { currentUser, setIsAuthModalOpen, setCurrentOrg, setSelectedProject, reloadProjects, setViewMode } = useStore();
   const { playSuccessSound, playClickSound } = useSound();
 
   const [preview, setPreview] = useState<any | null>(null);
@@ -83,6 +83,7 @@ function JoinContent() {
         if (Array.isArray(projs) && projs.length > 0) {
           setSelectedProject(projs[0]);
         }
+        await reloadProjects();
       }
 
       setViewMode('app');

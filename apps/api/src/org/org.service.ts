@@ -25,11 +25,45 @@ export class OrgService {
   }
 
   /**
-   * Create a shareable invitation link for an organization
+   * Create or return existing shareable invitation link for an organization
    */
-  async createInviteLink(orgId: string, role: string, invitedByUserId: string): Promise<any> {
+  async createInviteLink(orgId: string, role: string, invitedByUserId?: string): Promise<any> {
+    const targetRole = role || 'DEVELOPER';
+
+    // Check for existing unexpired shareable link for this organization and role
+    const existing = await this.dataSource.query(
+      `SELECT id, role, token_hash, expires_at
+       FROM organization_invitations
+       WHERE organization_id = $1 
+         AND role = $2 
+         AND email LIKE '%@invite.internal' 
+         AND expires_at > now()
+       ORDER BY created_at DESC 
+       LIMIT 1`,
+      [orgId, targetRole],
+    );
+
+    const orgRes = await this.dataSource.query(
+      `SELECT name, slug FROM organizations WHERE id = $1 LIMIT 1`,
+      [orgId],
+    );
+    const orgName = orgRes[0]?.name || 'Workspace';
+    const orgSlug = orgRes[0]?.slug;
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+    if (existing.length > 0) {
+      const activeToken = existing[0].token_hash;
+      return {
+        id: existing[0].id,
+        role: existing[0].role,
+        token: activeToken,
+        inviteUrl: `${frontendUrl}/join?token=${activeToken}`,
+        organizationName: orgName,
+        organizationSlug: orgSlug,
+      };
+    }
+
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30); // 30 days
     const placeholderEmail = `link-${rawToken.substring(0, 10)}@invite.internal`;
 
@@ -37,21 +71,16 @@ export class OrgService {
       `INSERT INTO organization_invitations (organization_id, email, role, token_hash, expires_at, invited_by)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, role`,
-      [orgId, placeholderEmail, role || 'MEMBER', tokenHash, expiresAt, invitedByUserId],
+      [orgId, placeholderEmail, targetRole, rawToken, expiresAt, invitedByUserId || null],
     );
-
-    const orgRes = await this.dataSource.query('SELECT name, slug FROM organizations WHERE id = $1 LIMIT 1', [orgId]);
-
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-    const inviteUrl = `${frontendUrl}/join?token=${rawToken}`;
 
     return {
       id: invRes[0].id,
       role: invRes[0].role,
       token: rawToken,
-      inviteUrl,
-      organizationName: orgRes[0]?.name || 'Workspace',
-      organizationSlug: orgRes[0]?.slug,
+      inviteUrl: `${frontendUrl}/join?token=${rawToken}`,
+      organizationName: orgName,
+      organizationSlug: orgSlug,
     };
   }
 
@@ -86,14 +115,13 @@ export class OrgService {
 
     // Generate random raw invitation token
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
 
     const invRes = await this.dataSource.query(
       `INSERT INTO organization_invitations (organization_id, email, role, token_hash, expires_at, invited_by)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email`,
-      [orgId, emailLower, role, tokenHash, expiresAt, invitedByUserId],
+      [orgId, emailLower, role, rawToken, expiresAt, invitedByUserId || null],
     );
     const invitation = invRes[0];
 
@@ -143,13 +171,14 @@ export class OrgService {
     }
 
     const inv = invRes[0];
-    const isExpired = new Date(inv.expiresAt) < new Date();
-    const isAlreadyAccepted = !!inv.acceptedAt && !inv.email.endsWith('@invite.internal');
+    const expDate = inv.expiresAt || inv.expires_at;
+    const isExpired = expDate ? new Date(expDate) < new Date() : false;
+    const isAlreadyAccepted = !!(inv.acceptedAt || inv.accepted_at) && !(inv.email || '').endsWith('@invite.internal');
 
     return {
       id: inv.id,
-      organizationId: inv.organizationId,
-      organizationName: inv.organizationName,
+      organizationId: inv.organizationId || inv.organization_id,
+      organizationName: inv.organizationName || 'Workspace',
       organizationSlug: inv.organizationSlug,
       inviterName: inv.inviterName || 'Team Admin',
       role: inv.role,
@@ -178,14 +207,16 @@ export class OrgService {
     );
 
     if (invRes.length === 0) {
-      throw new BadRequestException('Invalid invitation token');
+      throw new BadRequestException('Invalid or expired invitation token');
     }
 
     const invitation = invRes[0];
-    if (invitation.accepted_at && !invitation.email.endsWith('@invite.internal')) {
+    const isLinkInvite = (invitation.email || '').endsWith('@invite.internal');
+
+    if (invitation.accepted_at && !isLinkInvite) {
       throw new BadRequestException('This invitation has already been accepted.');
     }
-    if (new Date(invitation.expires_at) < new Date()) {
+    if (invitation.expires_at && new Date(invitation.expires_at) < new Date()) {
       throw new BadRequestException('This invitation has expired.');
     }
 
@@ -213,7 +244,7 @@ export class OrgService {
       }
 
       // Mark invitation accepted if it is a 1-to-1 email invite
-      if (!invitation.email.endsWith('@invite.internal')) {
+      if (!isLinkInvite) {
         await manager.query(
           `UPDATE organization_invitations SET accepted_at = now() WHERE id = $1`,
           [invitation.id],
