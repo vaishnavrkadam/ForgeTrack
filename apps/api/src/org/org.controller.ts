@@ -59,8 +59,16 @@ export class OrgController {
     if (!token) {
       throw new BadRequestException('Invitation token is required.');
     }
-    const data = await this.orgService.getInvitationPreview(token);
-    return { data };
+    try {
+      const data = await this.orgService.getInvitationPreview(token);
+      return { data };
+    } catch (err: any) {
+      if (err.status && err.status < 500) {
+        throw err;
+      }
+      console.error('[OrgController] previewInvitation error:', err);
+      throw new BadRequestException(err.message || 'Invalid or expired invitation token');
+    }
   }
 
   /**
@@ -74,8 +82,16 @@ export class OrgController {
     if (!token) {
       throw new BadRequestException('Invitation token is required.');
     }
-    const data = await this.orgService.acceptInvitation(token, user.id);
-    return { data };
+    try {
+      const data = await this.orgService.acceptInvitation(token, user?.id);
+      return { data };
+    } catch (err: any) {
+      if (err.status && err.status < 500) {
+        throw err;
+      }
+      console.error('[OrgController] acceptRawInvitation error:', err);
+      throw new BadRequestException(err.message || 'Failed to accept invitation');
+    }
   }
 
   @Post('invitations/accept')
@@ -86,7 +102,15 @@ export class OrgController {
     if (!token) {
       throw new BadRequestException('Invitation token is required.');
     }
-    const data = await this.orgService.acceptInvitation(token, user.id);
-    return { data };
+    try {
+      const data = await this.orgService.acceptInvitation(token, user?.id);
+      return { data };
+    } catch (err: any) {
+      if (err.status && err.status < 500) {
+        throw err;
+      }
+      console.error('[OrgController] acceptGlobalInvitation error:', err);
+      throw new BadRequestException(err.message || 'Failed to accept invitation');
+    }
   }
 }

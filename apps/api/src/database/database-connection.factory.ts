@@ -30,6 +30,40 @@ export async function isPortReachable(host: string, port: number, timeoutMs = 80
   });
 }
 
+async function runSelfHealingSchema(ds: DataSource): Promise<void> {
+  const healingQueries = [
+    `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`,
+    `ALTER TABLE organization_invitations ADD COLUMN IF NOT EXISTS token_hash text`,
+    `ALTER TABLE organization_invitations ADD COLUMN IF NOT EXISTS role varchar(40) NOT NULL DEFAULT 'DEVELOPER'`,
+    `ALTER TABLE organization_invitations ADD COLUMN IF NOT EXISTS expires_at timestamptz`,
+    `ALTER TABLE organization_invitations ADD COLUMN IF NOT EXISTS accepted_at timestamptz`,
+    `ALTER TABLE organization_invitations ADD COLUMN IF NOT EXISTS invited_by uuid`,
+    `ALTER TABLE organization_invitations ADD COLUMN IF NOT EXISTS email varchar(160)`,
+    `ALTER TABLE organization_members ADD COLUMN IF NOT EXISTS role varchar(40) NOT NULL DEFAULT 'DEVELOPER'`,
+    `ALTER TABLE organization_members ADD COLUMN IF NOT EXISTS status varchar(30) NOT NULL DEFAULT 'ACTIVE'`,
+    `ALTER TABLE organization_members ADD COLUMN IF NOT EXISTS joined_at timestamptz`,
+    `ALTER TABLE project_members ADD COLUMN IF NOT EXISTS role varchar(40) NOT NULL DEFAULT 'DEVELOPER'`,
+    `ALTER TABLE project_members ADD COLUMN IF NOT EXISTS joined_at timestamptz`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name varchar(120)`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_provider varchar(30)`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_provider_id varchar(255)`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS status varchar(30) NOT NULL DEFAULT 'ACTIVE'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamptz`,
+    `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at timestamptz`,
+    `ALTER TABLE automation_executions ADD COLUMN IF NOT EXISTS attempt_count integer NOT NULL DEFAULT 0`,
+  ];
+
+  for (const query of healingQueries) {
+    try {
+      await ds.query(query);
+    } catch {
+      // Ignored for non-fatal syntax or already existing
+    }
+  }
+}
+
 export async function createDatabaseDataSource(options: any): Promise<DataSource> {
   let host = options.host || 'localhost';
   let port = options.port || 5432;
@@ -49,7 +83,9 @@ export async function createDatabaseDataSource(options: any): Promise<DataSource
   if (isOnline) {
     logger.log(`Connecting to PostgreSQL on ${host}:${port}...`);
     const ds = new DataSource(options);
-    return ds.initialize();
+    await ds.initialize();
+    await runSelfHealingSchema(ds);
+    return ds;
   }
 
   // Seamless in-memory PostgreSQL engine fallback
