@@ -126,7 +126,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
           const pendingToken = typeof window !== 'undefined' ? localStorage.getItem('pending_join_token') : null;
           if (pendingToken) {
-            const acceptRes = await api.post<any>('/invitations/accept', { token: pendingToken });
+            const acceptRes = await api.post<any>('/invitations/accept/raw', { token: pendingToken });
             localStorage.removeItem('pending_join_token');
             if (acceptRes && acceptRes.organization) {
               const joinedOrg = {

@@ -66,8 +66,8 @@ export class OrgController {
   /**
    * Global accept invitation endpoint for logged in users
    */
-  @Post('invitations/accept')
-  async acceptGlobalInvitation(
+  @Post('invitations/accept/raw')
+  async acceptRawInvitation(
     @CurrentUser() user: any,
     @Body('token') token: string,
   ): Promise<ApiSuccessEnvelope<any>> {
