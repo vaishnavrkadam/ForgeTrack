@@ -34,8 +34,16 @@ export class PermissionsGuard implements CanActivate {
       });
     }
 
-    const orgId = request.params.organizationId || (organization ? organization.id : null);
-    const projectId = request.params.projectId;
+    let orgId = request.params.organizationId || (organization ? organization.id : null);
+    let projectId = request.params.projectId;
+
+    if (!projectId && request.params.issueId) {
+      const issueContext = await this.authzService.getIssueContext(request.params.issueId);
+      if (issueContext) {
+        projectId = issueContext.projectId;
+        if (!orgId) orgId = issueContext.orgId;
+      }
+    }
 
     if (!orgId) {
       throw new ForbiddenException({
@@ -52,12 +60,11 @@ export class PermissionsGuard implements CanActivate {
     if (this.isOrgPermission(requiredPermission)) {
       hasAccess = await this.authzService.hasOrgPermission(user.id, orgId, requiredPermission);
     } else {
-      if (!projectId) {
-        // If it's a project-scoped permission but no projectId in route params, look up org permission instead
-        // Org owners/admins inherit full access
-        hasAccess = await this.authzService.hasOrgPermission(user.id, orgId, 'org:update');
-      } else {
+      if (projectId) {
         hasAccess = await this.authzService.hasProjectPermission(user.id, orgId, projectId, requiredPermission);
+      } else {
+        // Fallback: check org permissions or membership
+        hasAccess = await this.authzService.hasOrgPermission(user.id, orgId, 'org:read');
       }
     }
 

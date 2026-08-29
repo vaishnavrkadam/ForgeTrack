@@ -692,41 +692,116 @@ export class AiService {
   /**
    * Interactive duplicate scan on arbitrary text against existing project issues
    */
+  /**
+   * Interactive duplicate scan on arbitrary text against existing project issues
+   */
   async testDuplicateCheck(projectId: string, title: string, description: string): Promise<any[]> {
     const text = `Title: ${title}\nDescription: ${description || ''}`;
     const queryVector = await this.embeddingService.generateEmbedding(text);
 
-    const rows = await this.dataSource.query(
-      `SELECT e.entity_id as "issueId", e.vector, i.title, i.number, p.key as "projectKey",
-              i.description
-       FROM embeddings e
-       JOIN issues i ON i.id = e.entity_id
+    // Fetch all issues in the project
+    const issues = await this.dataSource.query(
+      `SELECT i.id as "issueId", i.title, i.description, i.number, p.key as "projectKey"
+       FROM issues i
        JOIN projects p ON p.id = i.project_id
-       WHERE i.project_id = $1 AND e.entity_type = 'ISSUE'`,
+       WHERE i.project_id = $1 AND i.deleted_at IS NULL
+       ORDER BY i.created_at DESC`,
       [projectId],
     );
 
     const duplicates: any[] = [];
-    for (const row of rows) {
-      const rowValStr = String(row.vector).replace(/[{}[\]]/g, '');
-      const vec = rowValStr.split(',').map(Number);
-      if (vec.length === queryVector.length) {
-        const similarity = this.embeddingService.cosineSimilarity(queryVector, vec);
-        if (similarity >= 0.65) {
-          const reason = this.generateDuplicateReason(title, row.title, similarity);
-          duplicates.push({
-            issueId: row.issueId,
-            issueKey: `${row.projectKey}-${row.number}`,
-            title: row.title,
-            similarity: parseFloat(similarity.toFixed(4)),
-            reason,
-          });
-        }
+    for (const issue of issues) {
+      const issueText = `Title: ${issue.title}\nDescription: ${issue.description || ''}`;
+      const issueVector = await this.embeddingService.generateEmbedding(issueText);
+
+      const vectorSim = this.embeddingService.cosineSimilarity(queryVector, issueVector);
+      
+      // Calculate token Jaccard similarity
+      const cleanQ = (title + ' ' + (description || '')).toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+      const cleanI = (issue.title + ' ' + (issue.description || '')).toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+      const setQ = new Set(cleanQ);
+      const setI = new Set(cleanI);
+      let intersection = 0;
+      for (const w of setQ) {
+        if (setI.has(w)) intersection++;
+      }
+      const union = new Set([...cleanQ, ...cleanI]).size;
+      const jaccardSim = union > 0 ? intersection / union : 0;
+
+      // Direct title match
+      const isExactTitle = title.trim().toLowerCase() === issue.title.trim().toLowerCase();
+      const combinedSim = isExactTitle ? 1.0 : Math.max(vectorSim, jaccardSim * 0.9 + vectorSim * 0.1);
+
+      if (combinedSim >= 0.65 || isExactTitle) {
+        const reason = this.generateDuplicateReason(title, issue.title, combinedSim);
+        duplicates.push({
+          issueId: issue.issueId,
+          issueKey: `${issue.projectKey}-${issue.number}`,
+          title: issue.title,
+          similarity: parseFloat(combinedSim.toFixed(4)),
+          reason,
+        });
       }
     }
 
     duplicates.sort((a, b) => b.similarity - a.similarity);
     return duplicates;
+  }
+
+  /**
+   * Scan all issues in a project to identify existing duplicate pairs
+   */
+  async scanAllProjectDuplicates(projectId: string): Promise<any[]> {
+    const issues = await this.dataSource.query(
+      `SELECT i.id, i.title, i.description, i.number, i.status_id as "statusId", p.key as "projectKey"
+       FROM issues i
+       JOIN projects p ON p.id = i.project_id
+       WHERE i.project_id = $1 AND i.deleted_at IS NULL
+       ORDER BY i.created_at DESC`,
+      [projectId],
+    );
+
+    const duplicatePairs: any[] = [];
+    const processed = new Set<string>();
+
+    for (let i = 0; i < issues.length; i++) {
+      for (let j = i + 1; j < issues.length; j++) {
+        const a = issues[i];
+        const b = issues[j];
+        const pairKey = [a.id, b.id].sort().join('-');
+        if (processed.has(pairKey)) continue;
+        processed.add(pairKey);
+
+        const textA = `Title: ${a.title}\nDescription: ${a.description || ''}`;
+        const textB = `Title: ${b.title}\nDescription: ${b.description || ''}`;
+        const vecA = await this.embeddingService.generateEmbedding(textA);
+        const vecB = await this.embeddingService.generateEmbedding(textB);
+
+        const vectorSim = this.embeddingService.cosineSimilarity(vecA, vecB);
+        const isExactTitle = a.title.trim().toLowerCase() === b.title.trim().toLowerCase();
+        const combinedSim = isExactTitle ? 1.0 : vectorSim;
+
+        if (combinedSim >= 0.65 || isExactTitle) {
+          duplicatePairs.push({
+            primaryIssue: {
+              id: a.id,
+              key: `${a.projectKey}-${a.number}`,
+              title: a.title,
+            },
+            duplicateIssue: {
+              id: b.id,
+              key: `${b.projectKey}-${b.number}`,
+              title: b.title,
+            },
+            similarity: parseFloat(combinedSim.toFixed(4)),
+            reason: isExactTitle ? 'Identical defect title and description' : `High textual similarity (${Math.round(combinedSim * 100)}%)`,
+          });
+        }
+      }
+    }
+
+    duplicatePairs.sort((a, b) => b.similarity - a.similarity);
+    return duplicatePairs;
   }
 
   /**

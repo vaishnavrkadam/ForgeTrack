@@ -20,17 +20,26 @@ export class CommentService {
     if (issueRes.length === 0) throw new NotFoundException('Issue not found');
     const issue = issueRes[0];
 
+    const visibility = isPrivate ? 'PRIVATE' : 'PUBLIC';
+
     return this.dataSource.transaction(async (manager) => {
       // 1. Insert comment
       const commentRes = await manager.query(
-        `INSERT INTO comments (organization_id, issue_id, author_id, body, is_private)
+        `INSERT INTO comments (organization_id, issue_id, author_id, body, visibility)
          VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, body, is_private as "isPrivate", created_at as "createdAt"`,
-        [issue.orgId, issueId, userId, body, isPrivate],
+         RETURNING id, body, visibility, created_at as "createdAt"`,
+        [issue.orgId, issueId, userId, body, visibility],
       );
       const comment = commentRes[0];
 
-      // 2. Parse @username mentions (matches alphanumeric words prefixed with @)
+      // Fetch user info for response
+      const userRes = await manager.query(
+        `SELECT display_name as "displayName", email FROM users WHERE id = $1 LIMIT 1`,
+        [userId],
+      );
+      const u = userRes[0];
+
+      // 2. Parse @username mentions
       const mentions: string[] = [];
       const regex = /@(\w+)/g;
       let match;
@@ -39,23 +48,40 @@ export class CommentService {
       }
 
       // 3. Register commenter as watcher automatically
-      await manager.query(
-        `INSERT INTO watchers (organization_id, issue_id, user_id)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (issue_id, user_id) DO NOTHING`,
-        [issue.orgId, issueId, userId],
-      );
+      try {
+        await manager.query(
+          `INSERT INTO watchers (organization_id, issue_id, user_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (issue_id, user_id) DO NOTHING`,
+          [issue.orgId, issueId, userId],
+        );
+      } catch {
+        // Ignored
+      }
 
       // 4. Log Outbox Event
-      await this.notificationService.logOutboxEvent(manager, issue.orgId, 'comment_created', {
-        id: comment.id,
-        issueId,
-        authorId: userId,
-        mentions,
-        bodyText: body.substring(0, 100),
-      });
+      try {
+        await this.notificationService.logOutboxEvent(manager, issue.orgId, 'comment_created', {
+          id: comment.id,
+          issueId,
+          authorId: userId,
+          mentions,
+          bodyText: body.substring(0, 100),
+        });
+      } catch {
+        // Ignored
+      }
 
-      return comment;
+      return {
+        id: comment.id,
+        body: comment.body,
+        isPrivate: comment.visibility === 'PRIVATE',
+        createdAt: comment.createdAt,
+        displayName: u?.displayName || 'Team Member',
+        authorName: u?.displayName || 'Team Member',
+        authorEmail: u?.email,
+        userId,
+      };
     });
   }
 
@@ -78,20 +104,30 @@ export class CommentService {
     const isMember = memberRes.length > 0 && memberRes[0].role !== 'GUEST';
 
     const query = isMember
-      ? `SELECT c.id, c.body, c.is_private as "isPrivate", c.created_at as "createdAt",
-                u.display_name as "authorName", u.email as "authorEmail"
+      ? `SELECT c.id, c.body, c.visibility, c.created_at as "createdAt",
+                u.display_name as "displayName", u.display_name as "authorName", u.email as "authorEmail", u.id as "userId"
          FROM comments c
-         JOIN users u ON u.id = c.author_id
-         WHERE c.issue_id = $1
+         LEFT JOIN users u ON u.id = c.author_id
+         WHERE c.issue_id = $1 AND c.deleted_at IS NULL
          ORDER BY c.created_at ASC`
-      : `SELECT c.id, c.body, c.is_private as "isPrivate", c.created_at as "createdAt",
-                u.display_name as "authorName", u.email as "authorEmail"
+      : `SELECT c.id, c.body, c.visibility, c.created_at as "createdAt",
+                u.display_name as "displayName", u.display_name as "authorName", u.email as "authorEmail", u.id as "userId"
          FROM comments c
-         JOIN users u ON u.id = c.author_id
-         WHERE c.issue_id = $1 AND c.is_private = false
+         LEFT JOIN users u ON u.id = c.author_id
+         WHERE c.issue_id = $1 AND (c.visibility = 'PUBLIC' OR c.visibility IS NULL) AND c.deleted_at IS NULL
          ORDER BY c.created_at ASC`;
 
-    return this.dataSource.query(query, [issueId]);
+    const comments = await this.dataSource.query(query, [issueId]);
+    return comments.map((c: any) => ({
+      id: c.id,
+      body: c.body,
+      isPrivate: c.visibility === 'PRIVATE',
+      createdAt: c.createdAt,
+      displayName: c.displayName || c.authorName || 'Team Member',
+      authorName: c.displayName || c.authorName || 'Team Member',
+      authorEmail: c.authorEmail,
+      userId: c.userId,
+    }));
   }
 
   /**

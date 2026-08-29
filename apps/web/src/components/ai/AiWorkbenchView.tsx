@@ -17,10 +17,12 @@ export const AiWorkbenchView: React.FC = () => {
   const [semanticQuery, setSemanticQuery] = useState('');
 
   const [duplicateResult, setDuplicateResult] = useState<any[] | null>(null);
+  const [projectDuplicates, setProjectDuplicates] = useState<any[] | null>(null);
   const [triageResult, setTriageResult] = useState<any | null>(null);
   const [qualityResult, setQualityResult] = useState<any | null>(null);
   const [searchResult, setSearchResult] = useState<any[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isScanningAll, setIsScanningAll] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [suggestions, setSuggestions] = useState<Array<{ id: string; type: string; title: string; confidence: number; status: 'PENDING' | 'ACCEPTED' | 'REJECTED' }>>([]);
@@ -29,6 +31,7 @@ export const AiWorkbenchView: React.FC = () => {
   useEffect(() => {
     if (!selectedProject) {
       setSuggestions([]);
+      setProjectDuplicates(null);
       return;
     }
 
@@ -46,6 +49,21 @@ export const AiWorkbenchView: React.FC = () => {
 
     fetchSuggestions();
   }, [selectedProject]);
+
+  const handleScanAllProjectIssues = async () => {
+    if (!selectedProject) return;
+    setIsScanningAll(true);
+    setErrorMsg(null);
+    try {
+      const data = await api.get(`/projects/${selectedProject.id}/ai/duplicates/scan-all`);
+      setProjectDuplicates(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to scan project duplicates.');
+      setProjectDuplicates([]);
+    } finally {
+      setIsScanningAll(false);
+    }
+  };
 
   const handleRunDuplicateCheck = async () => {
     if (!testTitle.trim()) {
@@ -204,67 +222,130 @@ export const AiWorkbenchView: React.FC = () => {
         {/* Left 2 Cols: Interactive Playground */}
         <div className="col-span-2 bg-white dark:bg-[#1c1b18] border border-[#e7e2d6] dark:border-[#33302a] rounded-3xl p-6 shadow-2xs space-y-4">
           {activeTab === 'duplicate' && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#78716c]">
-                  Vector Similarity Duplicate Scanner (Threshold: 0.65)
-                </h3>
+            <div className="space-y-5">
+              {/* Project-wide batch duplicate scanner */}
+              <div className="p-4 bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 rounded-2xl flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-[#8b5cf6]">Project Duplicate Inspector</h4>
+                  <p className="text-[11px] text-[#78716c]">
+                    Automatically scans all issues in <strong className="text-[#1c1917] dark:text-white">{selectedProject?.name || 'current project'}</strong> to flag matching or identical defects.
+                  </p>
+                </div>
                 <button
-                  onClick={handleRunDuplicateCheck}
-                  disabled={isLoading}
-                  className="px-3 py-1 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                  onClick={handleScanAllProjectIssues}
+                  disabled={isScanningAll || !selectedProject}
+                  className="px-4 py-2 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  {isLoading ? 'Scanning...' : 'Scan Duplicates'}
+                  <SparklesIcon className="w-3.5 h-3.5" />
+                  <span>{isScanningAll ? 'Inspecting...' : 'Scan All Project Issues'}</span>
                 </button>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-[11px] font-bold text-[#78716c]">Defect Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Database connection timeout during peak traffic..."
-                  value={testTitle}
-                  onChange={e => setTestTitle(e.target.value)}
-                  className="w-full bg-[#f5f0e6] dark:bg-[#262420] px-3 py-2 rounded-xl border border-[#e7e2d6] dark:border-[#33302a] text-xs text-[#1c1917] dark:text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[11px] font-bold text-[#78716c]">Description (Optional)</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Error 504 gateway timeout when querying user profile..."
-                  value={testDesc}
-                  onChange={e => setTestDesc(e.target.value)}
-                  className="w-full bg-[#f5f0e6] dark:bg-[#262420] px-3 py-2 rounded-xl border border-[#e7e2d6] dark:border-[#33302a] text-xs text-[#1c1917] dark:text-white font-mono"
-                />
-              </div>
-
-              {duplicateResult && duplicateResult.length > 0 ? (
-                <div className="space-y-2 pt-2">
-                  <div className="text-xs font-bold text-[#78716c]">Matching Potential Duplicates:</div>
-                  {duplicateResult.map((dup, idx) => (
-                    <div key={idx} className="p-4 bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 rounded-2xl space-y-1.5">
+              {projectDuplicates && projectDuplicates.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-[#78716c] flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#ef4444] animate-ping" />
+                    <span>Detected Duplicate Defects in Project ({projectDuplicates.length}):</span>
+                  </div>
+                  {projectDuplicates.map((dup, idx) => (
+                    <div key={idx} className="p-4 bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-2xl space-y-2">
                       <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-[#8b5cf6]">{dup.issueKey}</span>
-                        <span className="font-bold text-[#10b981]">
-                          {Math.round((dup.similarity || 0) * 100)}% Similarity
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-[#ef4444]">{dup.primaryIssue.key}</span>
+                          <span className="text-[#78716c]">⇄</span>
+                          <span className="font-mono font-bold text-[#ef4444]">{dup.duplicateIssue.key}</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-md bg-[#ef4444]/20 text-[#ef4444] font-bold text-[11px]">
+                          {Math.round((dup.similarity || 0) * 100)}% Match
                         </span>
                       </div>
-                      <div className="text-xs font-bold text-[#1c1917] dark:text-white">
-                        {dup.title}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2.5 bg-white dark:bg-[#1c1b18] rounded-xl border border-[#e7e2d6] dark:border-[#33302a]">
+                          <span className="text-[10px] text-[#78716c] font-bold block">{dup.primaryIssue.key}</span>
+                          <span className="font-semibold text-[#1c1917] dark:text-white">{dup.primaryIssue.title}</span>
+                        </div>
+                        <div className="p-2.5 bg-white dark:bg-[#1c1b18] rounded-xl border border-[#e7e2d6] dark:border-[#33302a]">
+                          <span className="text-[10px] text-[#78716c] font-bold block">{dup.duplicateIssue.key}</span>
+                          <span className="font-semibold text-[#1c1917] dark:text-white">{dup.duplicateIssue.title}</span>
+                        </div>
                       </div>
                       <p className="text-[11px] text-[#78716c]">
-                        {dup.reason || 'Semantic vector cosine similarity match.'}
+                        {dup.reason || 'Identical or highly similar defect title.'}
                       </p>
                     </div>
                   ))}
                 </div>
-              ) : duplicateResult && duplicateResult.length === 0 ? (
-                <div className="p-4 bg-[#fbf9f5] dark:bg-[#121110] border border-[#e7e2d6] dark:border-[#33302a] rounded-2xl text-center text-xs text-[#78716c]">
-                  ✅ No duplicate defects detected above threshold for {selectedProject?.key || 'this project'}.
+              )}
+
+              {projectDuplicates && projectDuplicates.length === 0 && (
+                <div className="p-3 bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-xl text-xs font-semibold text-center">
+                  ✅ No duplicate defect pairs found among existing project issues.
                 </div>
-              ) : null}
+              )}
+
+              {/* Single custom title tester */}
+              <div className="pt-2 border-t border-[#e7e2d6] dark:border-[#33302a] space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#78716c]">
+                    Test Single Defect Similarity
+                  </h3>
+                  <button
+                    onClick={handleRunDuplicateCheck}
+                    disabled={isLoading}
+                    className="px-3 py-1.5 bg-[#f5f0e6] dark:bg-[#262420] hover:bg-[#e7e2d6] text-[#1c1917] dark:text-white text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isLoading ? 'Scanning...' : 'Test Defect'}
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-[#78716c]">Defect Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Database connection timeout during peak traffic..."
+                    value={testTitle}
+                    onChange={e => setTestTitle(e.target.value)}
+                    className="w-full bg-[#f5f0e6] dark:bg-[#262420] px-3 py-2 rounded-xl border border-[#e7e2d6] dark:border-[#33302a] text-xs text-[#1c1917] dark:text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-[#78716c]">Description (Optional)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Error 504 gateway timeout when querying user profile..."
+                    value={testDesc}
+                    onChange={e => setTestDesc(e.target.value)}
+                    className="w-full bg-[#f5f0e6] dark:bg-[#262420] px-3 py-2 rounded-xl border border-[#e7e2d6] dark:border-[#33302a] text-xs text-[#1c1917] dark:text-white font-mono"
+                  />
+                </div>
+
+                {duplicateResult && duplicateResult.length > 0 ? (
+                  <div className="space-y-2 pt-2">
+                    <div className="text-xs font-bold text-[#78716c]">Matching Potential Duplicates:</div>
+                    {duplicateResult.map((dup, idx) => (
+                      <div key={idx} className="p-4 bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 rounded-2xl space-y-1.5">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-[#8b5cf6]">{dup.issueKey}</span>
+                          <span className="font-bold text-[#10b981]">
+                            {Math.round((dup.similarity || 0) * 100)}% Similarity
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold text-[#1c1917] dark:text-white">
+                          {dup.title}
+                        </div>
+                        <p className="text-[11px] text-[#78716c]">
+                          {dup.reason || 'Semantic and lexical similarity match.'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : duplicateResult && duplicateResult.length === 0 ? (
+                  <div className="p-4 bg-[#fbf9f5] dark:bg-[#121110] border border-[#e7e2d6] dark:border-[#33302a] rounded-2xl text-center text-xs text-[#78716c]">
+                    ✅ No duplicate defects matching this text.
+                  </div>
+                ) : null}
+              </div>
             </div>
           )}
 

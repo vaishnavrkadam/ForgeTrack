@@ -66,6 +66,14 @@ export class AiController {
     return { data };
   }
 
+  @Get('projects/:projectId/ai/duplicates/scan-all')
+  async scanAllProjectDuplicates(
+    @Param('projectId') projectId: string,
+  ): Promise<ApiSuccessEnvelope<any[]>> {
+    const data = await this.aiService.scanAllProjectDuplicates(projectId);
+    return { data };
+  }
+
   @Post('ai/triage')
   async testTriage(
     @Body('title') title: string,

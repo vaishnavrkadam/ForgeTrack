@@ -75,22 +75,13 @@ export class AuthzService {
   }
 
   /**
-   * Verify ownership of a comment or issue for author-only edits
+   * Get issue context (orgId and projectId) for authorization resolution
    */
-  async isResourceOwner(userId: string, resourceType: 'comment' | 'issue', resourceId: string): Promise<boolean> {
-    if (resourceType === 'comment') {
-      const res = await this.dataSource.query(
-        'SELECT author_id as "authorId" FROM comments WHERE id = $1 LIMIT 1',
-        [resourceId],
-      );
-      return res.length > 0 && res[0].authorId === userId;
-    } else if (resourceType === 'issue') {
-      const res = await this.dataSource.query(
-        'SELECT reporter_id as "reporterId" FROM issues WHERE id = $1 LIMIT 1',
-        [resourceId],
-      );
-      return res.length > 0 && res[0].reporterId === userId;
-    }
-    return false;
+  async getIssueContext(issueId: string): Promise<{ orgId: string; projectId: string } | null> {
+    const res = await this.dataSource.query(
+      `SELECT organization_id as "orgId", project_id as "projectId" FROM issues WHERE id = $1 LIMIT 1`,
+      [issueId],
+    );
+    return res.length > 0 ? res[0] : null;
   }
 }

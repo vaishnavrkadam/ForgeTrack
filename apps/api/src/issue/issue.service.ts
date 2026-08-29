@@ -444,6 +444,27 @@ export class IssueService {
     }
     const projectId = existing[0].projectId;
 
+    // Resolve status code to statusId if string code was passed
+    if ((dto as any).status && !dto.statusId) {
+      const statusRes = await this.dataSource.query(
+        `SELECT id FROM statuses WHERE project_id = $1 AND (code ILIKE $2 OR name ILIKE $2) LIMIT 1`,
+        [projectId, (dto as any).status],
+      );
+      if (statusRes.length > 0) {
+        dto.statusId = statusRes[0].id;
+      }
+    }
+
+    if ((dto as any).priority && !dto.priorityId) {
+      const pRes = await this.dataSource.query(
+        `SELECT id FROM priorities WHERE project_id = $1 AND (code ILIKE $2 OR name ILIKE $2) LIMIT 1`,
+        [projectId, (dto as any).priority],
+      );
+      if (pRes.length > 0) {
+        dto.priorityId = pRes[0].id;
+      }
+    }
+
     return this.dataSource.transaction(async (manager) => {
       // 2. Perform Dynamic DB Updates for main fields
       const updateFields: string[] = [];

@@ -221,13 +221,13 @@ export class OAuthService {
 
       if (existingUsers.length > 0) {
         user = existingUsers[0];
-        // Update OAuth info, avatar, last login
+        // Update OAuth info, avatar, last login, and display name
         await manager.query(
           `UPDATE users
            SET oauth_provider = $1,
                oauth_provider_id = $2,
                avatar_url = COALESCE($3, avatar_url),
-               display_name = COALESCE(display_name, $4),
+               display_name = COALESCE($4, display_name),
                last_login_at = now(),
                updated_at = now()
            WHERE id = $5`,
