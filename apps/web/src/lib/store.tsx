@@ -119,6 +119,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setCurrentUser(u);
         setCurrentOrg(data.organization || null);
         setViewMode('app');
+        setIsAuthModalOpen(false);
+        setActiveTab('dashboard');
 
         // Check if there is a pending workspace invitation token
         try {

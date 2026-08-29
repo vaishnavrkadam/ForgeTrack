@@ -388,7 +388,8 @@ export class InitialSchema1724770000000 implements MigrationInterface {
         entity_type varchar(50),
         entity_id uuid,
         read_at timestamptz,
-        created_at timestamptz NOT NULL DEFAULT now()
+        created_at timestamptz NOT NULL DEFAULT now(),
+        is_read boolean NOT NULL DEFAULT false
       );
 
       CREATE TABLE IF NOT EXISTS notification_preferences (
