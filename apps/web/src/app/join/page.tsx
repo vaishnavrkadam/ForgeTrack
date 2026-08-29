@@ -63,7 +63,7 @@ function JoinContent() {
     setErrorMsg(null);
 
     try {
-      const acceptRes = await api.post<any>('/invitations/accept', { token });
+      const acceptRes = await api.post<any>('/invitations/accept/raw', { token });
       try {
         localStorage.removeItem('pending_join_token');
       } catch {

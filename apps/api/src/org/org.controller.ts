@@ -78,8 +78,8 @@ export class OrgController {
     return { data };
   }
 
-  @Post('organizations/:organizationId/invitations/accept')
-  async acceptOrgInvitation(
+  @Post('invitations/accept')
+  async acceptGlobalInvitation(
     @CurrentUser() user: any,
     @Body('token') token: string,
   ): Promise<ApiSuccessEnvelope<any>> {
