@@ -12,7 +12,7 @@ function JoinContent() {
   const router = useRouter();
   const token = searchParams.get('token');
 
-  const { currentUser, setIsAuthModalOpen, setCurrentOrg, setSelectedProject, reloadProjects, setViewMode } = useStore();
+  const { currentUser, setCurrentOrg, setSelectedProject, reloadProjects, setViewMode } = useStore();
   const { playSuccessSound, playClickSound } = useSound();
 
   const [preview, setPreview] = useState<any | null>(null);
@@ -94,17 +94,13 @@ function JoinContent() {
     }
   };
 
-  const handleOAuthLogin = (provider: 'github' | 'google') => {
+  const handleOAuthLogin = () => {
     playClickSound();
     const apiUrl = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
     const returnOrigin = typeof window !== 'undefined' ? `${window.location.origin}/join?token=${token}` : '';
     const stateParam = returnOrigin ? `?state=${encodeURIComponent(returnOrigin)}` : '';
 
-    if (provider === 'github') {
-      window.location.href = `${apiUrl}/auth/github${stateParam}`;
-    } else {
-      window.location.href = `${apiUrl}/auth/google${stateParam}`;
-    }
+    window.location.href = `${apiUrl}/auth/github${stateParam}`;
   };
 
   return (
@@ -165,31 +161,17 @@ function JoinContent() {
             ) : (
               <div className="space-y-3 pt-2">
                 <p className="text-xs text-[#78716c]">
-                  Sign in or create an account to accept this workspace invite:
+                  Sign in with GitHub to accept this workspace invite:
                 </p>
 
                 <button
-                  onClick={() => handleOAuthLogin('github')}
-                  className="w-full py-2.5 bg-[#24292f] hover:bg-[#1b1f23] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  onClick={handleOAuthLogin}
+                  className="w-full py-3 bg-[#24292f] hover:bg-[#1b1f23] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs"
                 >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                  </svg>
                   <span>Sign in with GitHub</span>
-                </button>
-
-                <button
-                  onClick={() => handleOAuthLogin('google')}
-                  className="w-full py-2.5 bg-white dark:bg-[#1c1b18] hover:bg-[#f5f0e6] dark:hover:bg-[#262420] text-[#1c1917] dark:text-white border border-[#e7e2d6] dark:border-[#33302a] text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                >
-                  <span>Continue with Google</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    playClickSound();
-                    setIsAuthModalOpen(true);
-                  }}
-                  className="w-full py-2 text-xs font-semibold text-[#78716c] hover:text-[#1c1917] dark:hover:text-white"
-                >
-                  Sign in with Email / Password
                 </button>
               </div>
             )}

@@ -6,6 +6,26 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api/v1');
+
+  // Security Hardening: Disable X-Powered-By header
+  const expressApp = app.getHttpAdapter().getInstance();
+  if (expressApp && typeof expressApp.disable === 'function') {
+    expressApp.disable('x-powered-by');
+  }
+
+  // Security Hardening: Set security response headers middleware
+  app.use((_req: any, res: any, next: () => void) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (process.env.NODE_ENV === 'production') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
+
   app.use(cookieParser());
   app.useGlobalPipes(
     new ValidationPipe({
